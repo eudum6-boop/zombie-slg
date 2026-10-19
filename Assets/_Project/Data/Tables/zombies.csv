@@ -1,0 +1,6 @@
+# 좀비 능력치. id는 코드의 ZombieType(Walker/Runner/Brute)과 같아야 합니다.
+# hp는 NIGHT 1 기준이며 밤마다 balance.csv의 night.hp_per_night 만큼 늘어납니다.
+id,hp,speed,damage,attack_interval,radius,scale,note
+Walker,38,1.35,10,1.0,0.32,1.0,기본 좀비
+Runner,22,2.9,6,0.7,0.28,0.85,빠르고 약함
+Brute,240,0.88,38,1.4,0.55,1.6,느리고 단단함

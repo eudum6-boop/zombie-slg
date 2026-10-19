@@ -32,23 +32,6 @@ namespace ZombieSLG.Domain
             new ZombieStats(MaxHp * multiplier, Speed, AttackDamage, AttackInterval, Radius, VisualScale);
     }
 
-    /// <summary>Base stats per zombie type. Hard-coded for M0; moves to the CSV → ScriptableObject pipeline in M2.</summary>
-    public static class ZombieStatTable
-    {
-        private static readonly ZombieStats Walker = new ZombieStats(38f, 1.35f, 10f, 1.0f, 0.32f, 1.0f);
-        private static readonly ZombieStats Runner = new ZombieStats(22f, 2.9f, 6f, 0.7f, 0.28f, 0.85f);
-        private static readonly ZombieStats Brute = new ZombieStats(240f, 0.88f, 38f, 1.4f, 0.55f, 1.6f);
-
-        public static ZombieStats Get(ZombieType type)
-        {
-            switch (type)
-            {
-                case ZombieType.Runner: return Runner;
-                case ZombieType.Brute: return Brute;
-                default: return Walker;
-            }
-        }
-    }
 
     public readonly struct HitResult
     {
@@ -81,14 +64,6 @@ namespace ZombieSLG.Domain
         }
     }
 
-    public static class NightScaling
-    {
-        public static int Clamp(int night) => night < 1 ? 1 : night;
-        public static float HpMultiplier(int night) => 1f + 0.2f * (Clamp(night) - 1);
-        public static float SpawnRateMultiplier(int night) => 1f + 0.2f * (Clamp(night) - 1);
-        public static float HordeSizeMultiplier(int night) => 1f + 0.25f * (Clamp(night) - 1);
-        public static float RewardMultiplier(int night) => 1f + 0.25f * (Clamp(night) - 1);
-    }
 
     public readonly struct NightReward
     {
@@ -106,26 +81,4 @@ namespace ZombieSLG.Domain
         }
     }
 
-    public static class NightRewardCalculator
-    {
-        /// <summary>Stars by remaining base HP: 3 at 70%+, 2 at 30%+, 1 otherwise. 0 on defeat.</summary>
-        public static int Stars(bool victory, float hqHpRatio)
-        {
-            if (!victory) return 0;
-            if (hqHpRatio >= 0.7f) return 3;
-            if (hqHpRatio >= 0.3f) return 2;
-            return 1;
-        }
-
-        public static NightReward Calculate(int night, bool victory, int kills, float hqHpRatio)
-        {
-            if (kills < 0) kills = 0;
-            float mult = NightScaling.RewardMultiplier(night) * (victory ? 1f : 0.3f);
-            int food = (int)Math.Round((100 + kills * 2) * mult);
-            int fuel = (int)Math.Round((60 + kills) * mult);
-            int materials = (int)Math.Round((40 + kills * 1.5) * mult);
-            int shards = Stars(victory, hqHpRatio);
-            return new NightReward(food, fuel, materials, shards);
-        }
-    }
 }

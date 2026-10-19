@@ -43,23 +43,22 @@ namespace ZombieSLG.Domain
     /// </summary>
     public sealed class BaseState
     {
-        public const double FoodPerSurvivorPerHour = 60;
-        public const double MoralePerHour = 300;     // morale points moved toward target per hour
-        public const double FedMorale = 85;
-        public const double StarvingMorale = 20;
-        public const int BuilderSlots = 1;
-
         private readonly GameSave _s;
+        private readonly GameData _data;
+        private readonly EconomyRules _eco;
 
         /// <summary>One-off events produced by the last calls. The application layer drains and publishes them.</summary>
         public readonly List<BaseEvent> Events = new List<BaseEvent>();
 
-        public BaseState(GameSave save)
+        public BaseState(GameSave save, GameData data)
         {
             _s = save ?? throw new ArgumentNullException(nameof(save));
+            _data = data ?? throw new ArgumentNullException(nameof(data));
+            _eco = data.Economy;
         }
 
         public GameSave Data => _s;
+        public GameData Rules => _data;
         public IReadOnlyList<BuildingSave> Buildings => _s.Buildings;
         public int Night => _s.Night;
         public int Survivors => _s.Survivors;
@@ -76,7 +75,7 @@ namespace ZombieSLG.Domain
 
         public int LevelOf(int id) => Get(id)?.Level ?? 0;
         public int HqLevel => LevelOf(BasePlots.Headquarters);
-        public int StorageCap => BuildingCatalog.StorageCap(HqLevel);
+        public int StorageCap => _eco.StorageCap(HqLevel);
 
         public int SurvivorCapacity
         {
@@ -84,7 +83,7 @@ namespace ZombieSLG.Domain
             {
                 int cap = 0;
                 foreach (var b in _s.Buildings)
-                    if (b.Type == BuildingType.Shelter) cap += BuildingCatalog.ShelterCapacity(b.Level);
+                    if (b.Type == BuildingType.Shelter) cap += _eco.ShelterCapacity(b.Level);
                 return Math.Max(cap, 1);
             }
         }
@@ -121,21 +120,22 @@ namespace ZombieSLG.Domain
             }
         }
 
-        /// <summary>0.6 at zero morale, 1.0 at full morale.</summary>
-        public double MoraleMultiplier => 0.6 + 0.4 * Math.Max(0, Math.Min(100, _s.Morale)) / 100.0;
+        /// <summary>economy.morale_floor at zero morale, 1.0 at full morale.</summary>
+        public double MoraleMultiplier => _eco.MoraleMultiplier(_s.Morale);
 
-        /// <summary>Unstaffed buildings still trickle at 25%; every worker adds the rest proportionally.</summary>
+        /// <summary>Unstaffed buildings still trickle (economy.unstaffed_efficiency); workers add the rest proportionally.</summary>
         public double Staffing(BuildingSave b)
         {
-            var def = BuildingCatalog.Get(b.Type);
+            var def = _data.Building(b.Type);
             int slots = def.WorkerSlots(b.Level);
             if (slots <= 0) return 0;
-            return 0.25 + 0.75 * Math.Min(b.Workers, slots) / slots;
+            double floor = _eco.UnstaffedEfficiency;
+            return floor + (1 - floor) * Math.Min(b.Workers, slots) / slots;
         }
 
         public double EffectiveRatePerHour(BuildingSave b)
         {
-            var def = BuildingCatalog.Get(b.Type);
+            var def = _data.Building(b.Type);
             if (!def.IsProducer) return 0;
             return def.RatePerHour(b.Level) * Staffing(b) * MoraleMultiplier;
         }
@@ -145,14 +145,14 @@ namespace ZombieSLG.Domain
             double rate = 0;
             foreach (var b in _s.Buildings)
             {
-                var def = BuildingCatalog.Get(b.Type);
+                var def = _data.Building(b.Type);
                 if (def.IsProducer && def.Produces == type) rate += EffectiveRatePerHour(b);
             }
             if (type == ResourceType.Food) rate -= FoodConsumptionPerHour;
             return rate;
         }
 
-        public double FoodConsumptionPerHour => _s.Survivors * FoodPerSurvivorPerHour;
+        public double FoodConsumptionPerHour => _s.Survivors * _eco.FoodPerSurvivorPerHour;
 
         public BuildingSave ActiveConstruction
         {
@@ -169,13 +169,13 @@ namespace ZombieSLG.Domain
         {
             var b = Get(id);
             if (b == null) return UpgradeBlock.UnknownBuilding;
-            var def = BuildingCatalog.Get(b.Type);
+            var def = _data.Building(b.Type);
             int target = b.Level + 1;
             if (target > def.MaxLevel) return UpgradeBlock.MaxLevel;
             if (b.Type != BuildingType.Headquarters && (target > HqLevel || HqLevel < def.RequiredHqLevel)) return UpgradeBlock.HqTooLow;
             int busy = 0;
             foreach (var x in _s.Buildings) if (x.Upgrading) busy++;
-            if (busy >= BuilderSlots) return UpgradeBlock.QueueBusy;
+            if (busy >= _eco.BuilderSlots) return UpgradeBlock.QueueBusy;
             if (!CanAfford(def.CostFor(target))) return UpgradeBlock.NotEnoughResources;
             return UpgradeBlock.None;
         }
@@ -187,7 +187,7 @@ namespace ZombieSLG.Domain
             if (block != UpgradeBlock.None) return block;
 
             var b = Get(id);
-            var def = BuildingCatalog.Get(b.Type);
+            var def = _data.Building(b.Type);
             int target = b.Level + 1;
             var cost = def.CostFor(target);
             _s.Food -= cost.Food;
@@ -205,7 +205,7 @@ namespace ZombieSLG.Domain
         {
             var b = Get(id);
             if (b == null || delta == 0) return false;
-            int slots = BuildingCatalog.Get(b.Type).WorkerSlots(b.Level);
+            int slots = _data.Building(b.Type).WorkerSlots(b.Level);
             if (delta > 0)
             {
                 int add = Math.Min(delta, Math.Min(IdleSurvivors, slots - b.Workers));
@@ -266,8 +266,8 @@ namespace ZombieSLG.Domain
                 Events.Add(new BaseEvent(starving ? BaseEventKind.StarvationStarted : BaseEventKind.StarvationEnded, -1, 0));
             }
 
-            double target = starving ? StarvingMorale : FedMorale;
-            double step = MoralePerHour * dtHours;
+            double target = starving ? _eco.StarvingMorale : _eco.FedMorale;
+            double step = _eco.MoralePerHour * dtHours;
             if (_s.Morale < target) _s.Morale = Math.Min(target, _s.Morale + step);
             else _s.Morale = Math.Max(target, _s.Morale - step);
 
@@ -286,10 +286,11 @@ namespace ZombieSLG.Domain
             if (!victory) return;
             _s.BestNight = Math.Max(_s.BestNight, _s.Night);
             _s.Night++;
-            if (_s.Survivors < SurvivorCapacity)
+            int arrive = Math.Min(_data.Night.SurvivorsPerVictory, SurvivorCapacity - _s.Survivors);
+            if (arrive > 0)
             {
-                _s.Survivors++;
-                Events.Add(new BaseEvent(BaseEventKind.SurvivorArrived, -1, 1));
+                _s.Survivors += arrive;
+                Events.Add(new BaseEvent(BaseEventKind.SurvivorArrived, -1, arrive));
             }
         }
     }

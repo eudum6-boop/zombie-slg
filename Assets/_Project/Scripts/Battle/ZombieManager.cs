@@ -104,7 +104,7 @@ namespace ZombieSLG.Battle
 
         private ZombieAgent Create(ZombieType type)
         {
-            var stats = ZombieStatTable.Get(type);
+            var stats = _ctx.Data.Zombie(type);
             var go = new GameObject("Zombie_" + type);
             go.transform.SetParent(_root, false);
             var visual = new GameObject("Visual").transform;
@@ -137,7 +137,7 @@ namespace ZombieSLG.Battle
             var pool = GetPool(type);
             var z = pool.Count > 0 ? pool.Pop() : Create(type);
 
-            z.Stats = ZombieStatTable.Get(type).WithHpMultiplier(hpMultiplier);
+            z.Stats = _ctx.Data.Zombie(type).WithHpMultiplier(hpMultiplier);
             z.Hp = z.Stats.MaxHp;
             z.Pos = pos;
             z.Vel = Vector3.zero;

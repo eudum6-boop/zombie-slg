@@ -66,18 +66,18 @@ namespace ZombieSLG.Domain
 
     public static class SaveMigrator
     {
-        public static GameSave NewGame(double now)
+        public static GameSave NewGame(double now, EconomyRules economy)
         {
             var s = new GameSave
             {
                 Version = GameSave.CurrentVersion,
                 LastTick = now,
-                Food = 400,
-                Fuel = 250,
-                Materials = 400,
+                Food = economy.StartFood,
+                Fuel = economy.StartFuel,
+                Materials = economy.StartMaterials,
                 Night = 1,
-                Survivors = 4,
-                Morale = 70,
+                Survivors = economy.StartSurvivors,
+                Morale = economy.StartMorale,
             };
             EnsureBuildings(s);
             return s;
@@ -87,16 +87,16 @@ namespace ZombieSLG.Domain
         /// Upgrades an older save in place. Also repairs missing plots, so adding a building in a
         /// later update never breaks existing players.
         /// </summary>
-        public static GameSave Migrate(GameSave s, double now)
+        public static GameSave Migrate(GameSave s, double now, EconomyRules economy)
         {
-            if (s == null) return NewGame(now);
+            if (s == null) return NewGame(now, economy);
             if (s.Buildings == null) s.Buildings = new List<BuildingSave>();
 
             if (s.Version < 1)
             {
                 // v0 → v1: pre-release saves had no morale/survivor fields.
-                if (s.Survivors <= 0) s.Survivors = 4;
-                if (s.Morale <= 0) s.Morale = 70;
+                if (s.Survivors <= 0) s.Survivors = economy.StartSurvivors;
+                if (s.Morale <= 0) s.Morale = economy.StartMorale;
                 if (s.Night <= 0) s.Night = 1;
                 if (s.LastTick <= 0) s.LastTick = now;
             }

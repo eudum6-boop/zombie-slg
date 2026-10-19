@@ -146,7 +146,7 @@ namespace ZombieSLG.Battle
             _ctx.Hud.SetBattleVisible(false);
             var s = _base.State;
             _ctx.Hq.SetLevel(s.HqLevel);
-            _ctx.Hq.ResetState(_ctx.Config.HqMaxHp * DefenseStats.HqHpMultiplier(s.HqLevel)); // also restores a collapsed HQ
+            _ctx.Hq.ResetState(_ctx.Config.HqMaxHp * _ctx.Data.Defense.HqHpMultiplier(s.HqLevel)); // also restores a collapsed HQ
             _ctx.Hero.ResetState();
             _hud.SetVisible(true);
             Select(-1);
@@ -198,7 +198,7 @@ namespace ZombieSLG.Battle
 
         private void OnUpgradeCompleted(BuildingUpgradeCompleted e)
         {
-            var def = BuildingCatalog.Get(BaseView.TypeOf(e.BuildingId));
+            var def = _ctx.Data.Building(BaseView.TypeOf(e.BuildingId));
             _view.Punch(e.BuildingId);
             _ctx.Feedback.Sfx.Play(SfxId.Victory, 0f);
             _ctx.Feedback.Fire(MapLayout.PlotCenter(e.BuildingId), 18, 1.2f, 2.5f, 0.2f);
@@ -214,7 +214,7 @@ namespace ZombieSLG.Battle
             int cap = s.StorageCap;
             foreach (var b in s.Buildings)
             {
-                var def = BuildingCatalog.Get(b.Type);
+                var def = _ctx.Data.Building(b.Type);
                 if (!def.IsProducer || b.Level <= 0) continue;
                 if (s.GetAmount(def.Produces) >= cap) continue;
                 double amount = s.EffectiveRatePerHour(b) * ProductionFloatInterval / 3600.0;

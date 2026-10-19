@@ -12,8 +12,8 @@ namespace ZombieSLG.Tests
 
         private static BaseState NewBase(out GameSave save)
         {
-            save = SaveMigrator.NewGame(T0);
-            return new BaseState(save);
+            save = SaveMigrator.NewGame(T0, TestData.Data.Economy);
+            return new BaseState(save, TestData.Data);
         }
 
         [Test]
@@ -23,8 +23,8 @@ namespace ZombieSLG.Tests
             Assert.AreEqual(BasePlots.Defaults.Length, save.Buildings.Count);
             Assert.AreEqual(1, s.HqLevel);
             Assert.AreEqual(0, s.LevelOf(BasePlots.Clinic));
-            Assert.AreEqual(4, s.Survivors);
-            Assert.AreEqual(1, s.IdleSurvivors);
+            Assert.AreEqual(TestData.Data.Economy.StartSurvivors, s.Survivors);
+            Assert.AreEqual(TestData.Data.Economy.StartSurvivors - 3, s.IdleSurvivors, "3 starters work the producers");
         }
 
         [Test]
@@ -54,7 +54,7 @@ namespace ZombieSLG.Tests
         public void Upgrade_DeductsCostAndCompletesOnTime()
         {
             var s = NewBase(out var save);
-            var def = BuildingCatalog.Get(BuildingType.Headquarters);
+            var def = TestData.Data.Building(BuildingType.Headquarters);
             var cost = def.CostFor(2);
             double mat0 = save.Materials;
 
@@ -91,15 +91,15 @@ namespace ZombieSLG.Tests
             // Same start, same upgrade; one save jumps 2h in a single call, the other ticks every second.
             GameSave Make()
             {
-                var g = SaveMigrator.NewGame(T0);
+                var g = SaveMigrator.NewGame(T0, TestData.Data.Economy);
                 g.Food = 900; g.Fuel = 900; g.Materials = 500; // below cap so production stays visible
                 return g;
             }
 
             var jumpSave = Make();
             var stepSave = Make();
-            var jump = new BaseState(jumpSave);
-            var step = new BaseState(stepSave);
+            var jump = new BaseState(jumpSave, TestData.Data);
+            var step = new BaseState(stepSave, TestData.Data);
             Assert.AreEqual(UpgradeBlock.None, jump.StartUpgrade(BasePlots.Headquarters, T0));
             Assert.AreEqual(UpgradeBlock.None, step.StartUpgrade(BasePlots.Headquarters, T0));
 
@@ -144,7 +144,7 @@ namespace ZombieSLG.Tests
             save.Survivors = 12;
             s.Advance(T0 + 3600);
             Assert.IsTrue(s.IsStarving);
-            Assert.AreEqual(BaseState.StarvingMorale, s.Morale, 0.001f);
+            Assert.AreEqual(TestData.Data.Economy.StarvingMorale, s.Morale, 0.001f);
             Assert.IsTrue(s.Events.Any(e => e.Kind == BaseEventKind.StarvationStarted));
         }
 
@@ -154,13 +154,13 @@ namespace ZombieSLG.Tests
             var s = NewBase(out var save);
             s.ApplyNightResult(true, new NightReward(10, 20, 30, 2), 50);
             Assert.AreEqual(2, s.Night);
-            Assert.AreEqual(5, s.Survivors);
+            Assert.AreEqual(TestData.Data.Economy.StartSurvivors + TestData.Data.Night.SurvivorsPerVictory, s.Survivors);
             Assert.AreEqual(2, s.HeroShards);
             Assert.AreEqual(50, save.TotalKills);
 
             s.ApplyNightResult(false, new NightReward(1, 1, 1, 0), 5);
             Assert.AreEqual(2, s.Night, "defeat does not advance");
-            Assert.AreEqual(5, s.Survivors);
+            Assert.AreEqual(TestData.Data.Economy.StartSurvivors + TestData.Data.Night.SurvivorsPerVictory, s.Survivors);
         }
 
         [Test]
@@ -178,7 +178,7 @@ namespace ZombieSLG.Tests
         [Test]
         public void Migrate_Null_CreatesNewGame()
         {
-            var s = SaveMigrator.Migrate(null, 42);
+            var s = SaveMigrator.Migrate(null, 42, TestData.Data.Economy);
             Assert.AreEqual(GameSave.CurrentVersion, s.Version);
             Assert.AreEqual(42f, (float)s.LastTick, 0.001f);
         }
@@ -188,12 +188,12 @@ namespace ZombieSLG.Tests
         {
             var old = new GameSave { Version = 0, Night = 3, Food = 999 };
             old.Buildings.Add(new BuildingSave { Id = BasePlots.Headquarters, Type = BuildingType.Headquarters, Level = 4 });
-            var s = SaveMigrator.Migrate(old, 100);
+            var s = SaveMigrator.Migrate(old, 100, TestData.Data.Economy);
             Assert.AreEqual(GameSave.CurrentVersion, s.Version);
             Assert.AreEqual(3, s.Night);
             Assert.AreEqual(4, s.Buildings.First(b => b.Id == BasePlots.Headquarters).Level, "existing data kept");
             Assert.AreEqual(BasePlots.Defaults.Length, s.Buildings.Count);
-            Assert.AreEqual(4, s.Survivors);
+            Assert.AreEqual(TestData.Data.Economy.StartSurvivors, s.Survivors);
             Assert.AreEqual(100f, (float)s.LastTick, 0.001f);
         }
     }
@@ -246,12 +246,12 @@ namespace ZombieSLG.Tests
         public void Load_ReportsOfflineProgress()
         {
             var clock = new FakeClock { Now = 5000 };
-            var repo = new MemoryRepo { Stored = SaveMigrator.NewGame(5000 - 7200) };
+            var repo = new MemoryRepo { Stored = SaveMigrator.NewGame(5000 - 7200, TestData.Data.Economy) };
             var bus = new EventBus();
             var reports = new List<OfflineProgressReport>();
             bus.Subscribe<OfflineProgressReport>(reports.Add);
 
-            var svc = new BaseService(clock, repo, bus);
+            var svc = new BaseService(clock, repo, bus, TestData.Data);
             svc.Load();
 
             Assert.AreEqual(1, reports.Count);
@@ -271,7 +271,7 @@ namespace ZombieSLG.Tests
             bus.Subscribe<BuildingUpgradeStarted>(started.Add);
             bus.Subscribe<BuildingUpgradeCompleted>(done.Add);
 
-            var svc = new BaseService(clock, repo, bus);
+            var svc = new BaseService(clock, repo, bus, TestData.Data);
             svc.Load();
             Assert.AreEqual(UpgradeBlock.None, svc.TryUpgrade(BasePlots.Headquarters));
             Assert.AreEqual(1, started.Count);
@@ -290,7 +290,7 @@ namespace ZombieSLG.Tests
             var bus = new EventBus();
             int arrived = 0;
             bus.Subscribe<SurvivorArrived>(_ => arrived++);
-            var svc = new BaseService(clock, repo, bus);
+            var svc = new BaseService(clock, repo, bus, TestData.Data);
             svc.Load();
             svc.ApplyNight(true, new NightReward(100, 100, 100, 1), 10);
             Assert.AreEqual(2, repo.Stored.Night);

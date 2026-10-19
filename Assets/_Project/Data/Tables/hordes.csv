@@ -1,0 +1,6 @@
+# 대규모 습격. time = 밤 시작 후 초, count = NIGHT 1 기준 마리 수 (밤마다 night.horde_per_night 만큼 증가)
+time,count
+50,30
+105,45
+150,60
+172,75

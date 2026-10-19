@@ -1,11 +1,13 @@
 using System.Collections.Generic;
 using UnityEngine;
+using ZombieSLG.Domain;
 
 namespace ZombieSLG.Battle
 {
     /// <summary>Shared references for the battle systems. Built once by <see cref="BattleBootstrap"/>.</summary>
     public sealed class BattleContext
     {
+        public GameData Data;
         public BattleConfig Config;
         public MapLayout Map;
         public MaterialLibrary Materials;
@@ -25,49 +27,70 @@ namespace ZombieSLG.Battle
     }
 
     /// <summary>
-    /// Inspector-tunable numbers for M0. Zombie stats and wave settings live in the Domain layer;
-    /// these are the player-side values that will move to data tables in M2.
+    /// Player-side battle numbers, read from balance.csv (hero.*, tower.*, skill.firebomb.*, hq.*).
+    /// Debug values come from the BattleBootstrap inspector.
     /// </summary>
-    [System.Serializable]
     public sealed class BattleConfig
     {
-        /// <summary>Bump when defaults change so scenes saved with old values are reset (see BattleBootstrap).</summary>
-        public const int CurrentVersion = 3;
-        [HideInInspector] public int Version;
+        public float HqMaxHp;
 
-        [Header("Headquarters")]
-        public float HqMaxHp = 2300f;
+        public float HeroMaxHp;
+        public float HeroMoveSpeed;
+        public float HeroRange;
+        public float HeroFireInterval;
+        public float HeroDamage;
+        public float HeroCritChance;
+        public float HeroCritMultiplier;
+        public float HeroRegenPerSecond;
+        public float HeroRespawnSeconds;
 
-        [Header("Hero")]
-        public float HeroMaxHp = 300f;
-        public float HeroMoveSpeed = 5.5f;
-        public float HeroRange = 7.5f;
-        public float HeroFireInterval = 0.25f;
-        public float HeroDamage = 13f;
-        public float HeroCritChance = 0.14f;
-        public float HeroCritMultiplier = 2f;
-        public float HeroRegenPerSecond = 6.5f;
-        public float HeroRespawnSeconds = 6f;
+        public float SkillCooldown;
+        public float SkillRadius;
+        public float SkillDamage;
+        public float SkillEdgeFactor;
+        public float SkillBurnDps;
+        public float SkillBurnDuration;
 
-        [Header("Firebomb skill")]
-        public float SkillCooldown = 13f;
-        public float SkillRadius = 3.5f;
-        public float SkillDamage = 120f;
-        public float SkillBurnDps = 22f;
-        public float SkillBurnDuration = 3f;
+        public float TowerRange;
+        public float TowerFireInterval;
+        public float TowerDamage;
+        public float TowerCritChance;
+        public float TowerCritMultiplier;
 
-        [Header("Machine-gun tower")]
-        public float TowerRange = 8f;
-        public float TowerFireInterval = 0.18f;
-        public float TowerDamage = 6f;
-        public float TowerCritChance = 0.05f;
+        public float ZombieAggroRange;
 
-        [Header("Zombies")]
-        public float ZombieAggroRange = 2.8f;
+        // Debug (inspector)
         public int ZombiePrewarm = 300;
-
-        [Header("Debug")]
         public int StressTestCount = 200;
-        public bool ShowFlowFieldGizmos = false;
+
+        public static BattleConfig From(BalanceTable b) => new BattleConfig
+        {
+            HqMaxHp = b.F("hq.max_hp"),
+
+            HeroMaxHp = b.F("hero.max_hp"),
+            HeroMoveSpeed = b.F("hero.move_speed"),
+            HeroRange = b.F("hero.range"),
+            HeroFireInterval = b.F("hero.fire_interval"),
+            HeroDamage = b.F("hero.damage"),
+            HeroCritChance = b.F("hero.crit_chance"),
+            HeroCritMultiplier = b.F("hero.crit_multiplier"),
+            HeroRegenPerSecond = b.F("hero.regen_per_second"),
+            HeroRespawnSeconds = b.F("hero.respawn_seconds"),
+
+            SkillCooldown = b.F("skill.firebomb.cooldown"),
+            SkillRadius = b.F("skill.firebomb.radius"),
+            SkillDamage = b.F("skill.firebomb.damage"),
+            SkillEdgeFactor = b.F("skill.firebomb.edge_factor"),
+            SkillBurnDps = b.F("skill.firebomb.burn_dps"),
+            SkillBurnDuration = b.F("skill.firebomb.burn_duration"),
+
+            TowerRange = b.F("tower.range"),
+            TowerFireInterval = b.F("tower.fire_interval"),
+            TowerDamage = b.F("tower.damage"),
+            TowerCritChance = b.F("tower.crit_chance"),
+            TowerCritMultiplier = b.F("tower.crit_multiplier"),
+
+            ZombieAggroRange = b.F("zombie.aggro_range"),
+        };
     }
 }
