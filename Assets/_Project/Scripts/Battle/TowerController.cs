@@ -45,9 +45,10 @@ namespace ZombieSLG.Battle
         public void SetLevel(int level)
         {
             Level = level;
-            _damageMult = DefenseStats.TowerDamageMultiplier(level);
-            _rangeBonus = DefenseStats.TowerRangeBonus(level);
-            _intervalMult = DefenseStats.TowerIntervalMultiplier(level);
+            var defense = _ctx.Data.Defense;
+            _damageMult = defense.TowerDamageMultiplier(level);
+            _rangeBonus = defense.TowerRangeBonus(level);
+            _intervalMult = defense.TowerIntervalMultiplier(level);
             gameObject.SetActive(level > 0);
             float s = 1f + 0.06f * Mathf.Max(0, level - 1);
             transform.localScale = new Vector3(s, s, s);
@@ -79,7 +80,7 @@ namespace ZombieSLG.Battle
             if (_fireTimer > 0f) return;
             _fireTimer = cfg.TowerFireInterval * _intervalMult;
 
-            var hit = CombatRules.RollHit(cfg.TowerDamage * _damageMult, cfg.TowerCritChance, 2f, _ctx.Roll());
+            var hit = CombatRules.RollHit(cfg.TowerDamage * _damageMult, cfg.TowerCritChance, cfg.TowerCritMultiplier, _ctx.Roll());
             _alternate = !_alternate;
             Vector3 from = _muzzle.position + _head.right * (_alternate ? 0.15f : -0.15f);
             Vector3 to = target.AimPoint + Random.insideUnitSphere * 0.12f;

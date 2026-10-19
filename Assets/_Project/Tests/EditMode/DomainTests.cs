@@ -82,7 +82,7 @@ namespace ZombieSLG.Tests
         // Simulates a full night where the defenders keep the alive count at zero.
         private static List<SpawnRequest> RunNight(int night, int seed)
         {
-            var d = new WaveDirector(new WaveSettings(), night, seed);
+            var d = new WaveDirector(TestData.Data.Wave, TestData.Data.Night, night, seed);
             var all = new List<SpawnRequest>();
             var frame = new List<SpawnRequest>();
             while (!d.IsFinished)
@@ -110,7 +110,9 @@ namespace ZombieSLG.Tests
         [Test]
         public void Night_EndsAtDuration()
         {
-            var d = new WaveDirector(new WaveSettings { Duration = 10f }, 1, 1);
+            var w = TestData.Data.Wave.Clone();
+            w.Duration = 10f;
+            var d = new WaveDirector(w, TestData.Data.Night, 1, 1);
             var buf = new List<SpawnRequest>();
             for (int i = 0; i < 1000 && !d.IsFinished; i++) d.Tick(0.1f, 0, buf);
             Assert.IsTrue(d.IsFinished);
@@ -123,7 +125,7 @@ namespace ZombieSLG.Tests
         [Test]
         public void Hordes_TriggerExactlyOnce()
         {
-            var settings = new WaveSettings();
+            var settings = TestData.Data.Wave;
             var spawns = RunNight(1, 7);
             int hordeSpawns = spawns.Count(s => s.IsHorde);
             int expected = settings.Hordes.Sum(h => h.Count);
@@ -133,9 +135,9 @@ namespace ZombieSLG.Tests
         [Test]
         public void SpecialTypes_RespectUnlockTimes()
         {
-            var d = new WaveDirector(new WaveSettings(), 1, 3);
+            var d = new WaveDirector(TestData.Data.Wave, TestData.Data.Night, 1, 3);
             var buf = new List<SpawnRequest>();
-            var settings = new WaveSettings();
+            var settings = TestData.Data.Wave;
             while (d.Elapsed < settings.RunnerUnlockTime - 1f) d.Tick(0.1f, 0, buf);
             Assert.IsFalse(buf.Any(s => s.Type != ZombieType.Walker), "only walkers before the runner unlock");
         }
@@ -143,8 +145,9 @@ namespace ZombieSLG.Tests
         [Test]
         public void MaxAlive_IsRespected()
         {
-            var settings = new WaveSettings { MaxAlive = 10 };
-            var d = new WaveDirector(settings, 1, 5);
+            var settings = TestData.Data.Wave.Clone();
+            settings.MaxAlive = 10;
+            var d = new WaveDirector(settings, TestData.Data.Night, 1, 5);
             var buf = new List<SpawnRequest>();
             d.Tick(60f, 10, buf);
             Assert.AreEqual(0, buf.Count);
@@ -161,8 +164,8 @@ namespace ZombieSLG.Tests
         [Test]
         public void UpcomingHorde_IsAnnouncedWithinWindow()
         {
-            var settings = new WaveSettings();
-            var d = new WaveDirector(settings, 1, 9);
+            var settings = TestData.Data.Wave;
+            var d = new WaveDirector(settings, TestData.Data.Night, 1, 9);
             var buf = new List<SpawnRequest>();
             d.Tick(settings.Hordes[0].Time - 6f, 0, buf);
             Assert.IsFalse(d.TryGetUpcomingHorde(5f, out _, out _));
@@ -196,11 +199,11 @@ namespace ZombieSLG.Tests
         }
 
         [Test]
-        public void NightScaling_GrowsAndClampsBelowOne()
+        public void NightRules_GrowAndClampBelowOne()
         {
-            Assert.AreEqual(1f, NightScaling.HpMultiplier(0));
-            Assert.AreEqual(1f, NightScaling.HpMultiplier(1));
-            Assert.Greater(NightScaling.HpMultiplier(3), NightScaling.HpMultiplier(2));
+            Assert.AreEqual(1f, TestData.Data.Night.HpMultiplier(0));
+            Assert.AreEqual(1f, TestData.Data.Night.HpMultiplier(1));
+            Assert.Greater(TestData.Data.Night.HpMultiplier(3), TestData.Data.Night.HpMultiplier(2));
         }
     }
 
@@ -209,8 +212,8 @@ namespace ZombieSLG.Tests
         [Test]
         public void Defeat_GivesNoShardsAndReducedResources()
         {
-            var win = NightRewardCalculator.Calculate(1, true, 100, 0.8f);
-            var loss = NightRewardCalculator.Calculate(1, false, 100, 0f);
+            var win = TestData.Data.Rewards.Calculate(1, true, 100, 0.8f);
+            var loss = TestData.Data.Rewards.Calculate(1, false, 100, 0f);
             Assert.AreEqual(0, loss.HeroShards);
             Assert.Less(loss.Food, win.Food);
         }
@@ -221,14 +224,14 @@ namespace ZombieSLG.Tests
         [TestCase(0.1f, 1)]
         public void Stars_ByRemainingHp(float ratio, int stars)
         {
-            Assert.AreEqual(stars, NightRewardCalculator.Stars(true, ratio));
+            Assert.AreEqual(stars, TestData.Data.Rewards.Stars(true, ratio));
         }
 
         [Test]
         public void Rewards_ScaleWithNight()
         {
-            var n1 = NightRewardCalculator.Calculate(1, true, 50, 1f);
-            var n4 = NightRewardCalculator.Calculate(4, true, 50, 1f);
+            var n1 = TestData.Data.Rewards.Calculate(1, true, 50, 1f);
+            var n4 = TestData.Data.Rewards.Calculate(4, true, 50, 1f);
             Assert.Greater(n4.Food, n1.Food);
             Assert.Greater(n4.Fuel, n1.Fuel);
             Assert.Greater(n4.Materials, n1.Materials);

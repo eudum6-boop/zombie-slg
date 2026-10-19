@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
@@ -17,7 +18,10 @@ namespace ZombieSLG.Battle
     [DefaultExecutionOrder(-100)]
     public sealed class BattleBootstrap : MonoBehaviour
     {
-        [SerializeField] private BattleConfig _config = new BattleConfig();
+        [Header("Debug")]
+        [SerializeField] private int _zombiePrewarm = 300;
+        [SerializeField] private int _stressTestCount = 200;
+        [SerializeField] private bool _showFlowFieldGizmos;
 
         private BattleContext _ctx;
         private BaseService _baseService;
@@ -29,14 +33,18 @@ namespace ZombieSLG.Battle
             QualitySettings.vSyncCount = 0;
             WarnIf2DRenderer();
 
-            if (_config == null || _config.Version < BattleConfig.CurrentVersion)
+            // All numbers come from the CSV tables (Data/Tables → Resources/GameData.asset).
+            var data = LoadGameData();
+            if (data == null)
             {
-                // Balance pass changed the defaults; drop values serialized by an older version.
-                _config = new BattleConfig { Version = BattleConfig.CurrentVersion };
-                Debug.Log("[ZombieSLG] BattleConfig를 최신 기본값(v" + BattleConfig.CurrentVersion + ")으로 갱신했습니다.");
+                enabled = false;
+                return;
             }
+            var config = BattleConfig.From(data.Balance);
+            config.ZombiePrewarm = _zombiePrewarm;
+            config.StressTestCount = _stressTestCount;
 
-            var ctx = new BattleContext { Config = _config };
+            var ctx = new BattleContext { Data = data, Config = config };
             _ctx = ctx;
 
             ctx.WorldRoot = new GameObject("World").transform;
@@ -56,7 +64,7 @@ namespace ZombieSLG.Battle
             ctx.Hq.Init(ctx);
 
             ctx.Zombies = new ZombieManager(ctx);
-            int pre = Mathf.Max(0, _config.ZombiePrewarm);
+            int pre = Mathf.Max(0, config.ZombiePrewarm);
             ctx.Zombies.Prewarm(pre, pre / 3, pre / 10);
 
             var heroGo = new GameObject("Hero");
@@ -85,7 +93,7 @@ namespace ZombieSLG.Battle
                 onResultButton: battle.OnResultButton);
 
             // Layers: infrastructure → application → presentation.
-            _baseService = new BaseService(new SystemClock(), new LocalSaveRepository(), new EventBus());
+            _baseService = new BaseService(new SystemClock(), new LocalSaveRepository(), new EventBus(), data);
             var baseView = new BaseView(ctx);
             _flow = new GameFlow(ctx, _baseService, baseView, battle, input);
             var baseHud = new BaseHud(ctx, baseView, transform,
@@ -102,18 +110,23 @@ namespace ZombieSLG.Battle
             _flow?.Tick(Time.deltaTime);
         }
 
-#if UNITY_EDITOR
-        // Upgrade an outdated config in edit mode so the new version is saved with the scene;
-        // otherwise Awake would reset it on every Play and Inspector tweaks would be lost.
-        private void OnValidate()
+        private static GameData LoadGameData()
         {
-            if (UnityEngine.Application.isPlaying) return;
-            if (_config != null && _config.Version >= BattleConfig.CurrentVersion) return;
-            _config = new BattleConfig { Version = BattleConfig.CurrentVersion };
-            UnityEditor.EditorUtility.SetDirty(this);
-            Debug.Log("[ZombieSLG] BattleConfig를 v" + BattleConfig.CurrentVersion + " 기본값으로 바꿨습니다. 씬을 저장(Ctrl+S)하면 유지됩니다.");
+            var asset = GameDataAsset.LoadDefault();
+            if (asset == null)
+            {
+                Debug.LogError("[ZombieSLG] GameData가 없습니다. 메뉴 ZombieSLG ▸ 데이터 테이블 가져오기 를 실행하세요.");
+                return null;
+            }
+            var errors = new List<string>();
+            var data = asset.Build(errors);
+            if (data == null)
+            {
+                foreach (var e in errors) Debug.LogError("[ZombieSLG][데이터] " + e);
+                Debug.LogError("[ZombieSLG] 데이터 테이블에 오류가 있어 시작할 수 없습니다.");
+            }
+            return data;
         }
-#endif
 
         private void OnApplicationPause(bool paused)
         {
@@ -223,7 +236,7 @@ namespace ZombieSLG.Battle
 
         private void OnDrawGizmos()
         {
-            if (_ctx == null || _ctx.Map == null || !_config.ShowFlowFieldGizmos) return;
+            if (_ctx == null || _ctx.Map == null || !_showFlowFieldGizmos) return;
             var field = _ctx.Map.Field;
             for (int y = 0; y < field.Height; y++)
             {

@@ -49,7 +49,7 @@ namespace ZombieSLG.Battle
         private enum Phase { Idle, Playing, Result }
 
         private readonly BattleContext _ctx;
-        private readonly WaveSettings _waveSettings = new WaveSettings();
+        private readonly WaveSettings _waveSettings;
         private readonly List<SpawnRequest> _spawns = new List<SpawnRequest>(128);
         private readonly PointerInput _input;
 
@@ -72,6 +72,7 @@ namespace ZombieSLG.Battle
         {
             _ctx = ctx;
             _input = input;
+            _waveSettings = ctx.Data.Wave;
         }
 
         public string HordeTimes()
@@ -91,9 +92,10 @@ namespace ZombieSLG.Battle
             ctx.Zombies.Kills = 0;
 
             ctx.Hq.SetLevel(setup.HqLevel);
-            ctx.Hq.ResetState(ctx.Config.HqMaxHp * DefenseStats.HqHpMultiplier(setup.HqLevel));
-            ctx.Hero.RegenMultiplier = DefenseStats.HeroRegenMultiplier(setup.ClinicLevel);
-            ctx.Hero.RespawnMultiplier = DefenseStats.HeroRespawnMultiplier(setup.ClinicLevel);
+            var defense = ctx.Data.Defense;
+            ctx.Hq.ResetState(ctx.Config.HqMaxHp * defense.HqHpMultiplier(setup.HqLevel));
+            ctx.Hero.RegenMultiplier = defense.HeroRegenMultiplier(setup.ClinicLevel);
+            ctx.Hero.RespawnMultiplier = defense.HeroRespawnMultiplier(setup.ClinicLevel);
             ctx.Hero.ResetState();
             ctx.Skill.ResetState();
             for (int i = 0; i < ctx.Towers.Count; i++)
@@ -103,7 +105,7 @@ namespace ZombieSLG.Battle
                 ctx.Towers[i].ResetState();
             }
 
-            _director = new WaveDirector(_waveSettings, _night, _night * 7919 + 17);
+            _director = new WaveDirector(_waveSettings, ctx.Data.Night, _night, _night * 7919 + 17);
             _lastHordeWarned = -1;
             _resultDelay = 0f;
             _phase = Phase.Playing;
@@ -126,7 +128,7 @@ namespace ZombieSLG.Battle
         public void OnStressTest()
         {
             if (_phase != Phase.Playing) return;
-            float hp = NightScaling.HpMultiplier(_night);
+            float hp = _ctx.Data.Night.HpMultiplier(_night);
             for (int i = 0; i < _ctx.Config.StressTestCount; i++)
             {
                 var side = (SpawnSide)(i % 3);
@@ -162,7 +164,7 @@ namespace ZombieSLG.Battle
 
                 _spawns.Clear();
                 _director.Tick(dt, ctx.Zombies.AliveCount, _spawns);
-                float hp = NightScaling.HpMultiplier(_night);
+                float hp = _ctx.Data.Night.HpMultiplier(_night);
                 for (int i = 0; i < _spawns.Count; i++)
                 {
                     var s = _spawns[i];
@@ -244,8 +246,8 @@ namespace ZombieSLG.Battle
 
             int kills = ctx.Zombies.Kills;
             float hpRatio = ctx.Hq.HpRatio;
-            var reward = NightRewardCalculator.Calculate(_night, victory, kills, hpRatio);
-            int stars = NightRewardCalculator.Stars(victory, hpRatio);
+            var reward = ctx.Data.Rewards.Calculate(_night, victory, kills, hpRatio);
+            int stars = ctx.Data.Rewards.Stars(victory, hpRatio);
             _outcome = new NightOutcome(victory, reward, kills, hpRatio);
 
             if (victory)

@@ -82,14 +82,16 @@ namespace ZombieSLG.Application
         private readonly IClock _clock;
         private readonly ISaveRepository _repo;
         private readonly EventBus _bus;
+        private readonly GameData _data;
         private double _lastSave;
 
         public BaseState State { get; private set; }
         public EventBus Bus => _bus;
         public double Now => _clock.Now;
 
-        public BaseService(IClock clock, ISaveRepository repo, EventBus bus)
+        public BaseService(IClock clock, ISaveRepository repo, EventBus bus, GameData data)
         {
+            _data = data ?? throw new ArgumentNullException(nameof(data));
             _clock = clock ?? throw new ArgumentNullException(nameof(clock));
             _repo = repo ?? throw new ArgumentNullException(nameof(repo));
             _bus = bus ?? throw new ArgumentNullException(nameof(bus));
@@ -99,8 +101,8 @@ namespace ZombieSLG.Application
         public void Load()
         {
             double now = _clock.Now;
-            var save = SaveMigrator.Migrate(_repo.Load(), now);
-            State = new BaseState(save);
+            var save = SaveMigrator.Migrate(_repo.Load(), now, _data.Economy);
+            State = new BaseState(save, _data);
 
             double away = now - save.LastTick;
             double food = save.Food, fuel = save.Fuel, materials = save.Materials;
@@ -161,7 +163,7 @@ namespace ZombieSLG.Application
         public void ResetProgress()
         {
             _repo.Delete();
-            State = new BaseState(SaveMigrator.NewGame(_clock.Now));
+            State = new BaseState(SaveMigrator.NewGame(_clock.Now, _data.Economy), _data);
             Save();
         }
 

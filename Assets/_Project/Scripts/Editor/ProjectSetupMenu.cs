@@ -26,10 +26,11 @@ namespace ZombieSLG.EditorTools
         private const string ScenesDir = "Assets/_Project/Scenes";
         private const string BattleScenePath = ScenesDir + "/Battle_M0.unity";
 
-        [MenuItem("ZombieSLG/0. 전체 설정 (렌더러 + 씬 생성)", priority = 0)]
+        [MenuItem("ZombieSLG/0. 전체 설정 (렌더러 + 데이터 + 씬)", priority = 0)]
         public static void SetupAll()
         {
             SetupRenderer();
+            GameDataImporter.Import(false);
             CreateBattleScene();
         }
 

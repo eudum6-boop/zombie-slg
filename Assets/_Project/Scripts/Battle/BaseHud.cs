@@ -358,7 +358,7 @@ namespace ZombieSLG.Battle
         {
             var b = s.Get(_selected);
             if (b == null) return;
-            var def = BuildingCatalog.Get(b.Type);
+            var def = _ctx.Data.Building(b.Type);
 
             _panelTitle.text = b.Level > 0 ? $"{def.Name}  <size=40>Lv.{b.Level}</size>" : $"{def.Name}  <size=36><color=#9aa4b0>(미건설)</color></size>";
             _panelDesc.text = def.Description;
@@ -411,19 +411,21 @@ namespace ZombieSLG.Battle
             _upgradeReason.text = ReasonText(block, def, b);
         }
 
-        private static string StatLine(BaseState s, BuildingSave b, int level, bool preview = false)
+        private string StatLine(BaseState s, BuildingSave b, int level, bool preview = false)
         {
-            var def = BuildingCatalog.Get(b.Type);
+            var data = _ctx.Data;
+            var def = data.Building(b.Type);
+            var defense = data.Defense;
             switch (b.Type)
             {
                 case BuildingType.Headquarters:
-                    return $"창고 {BuildingCatalog.StorageCap(level):N0}  ·  건물 최대 Lv.{level}  ·  밤 본부 체력 x{DefenseStats.HqHpMultiplier(level):0.0#}";
+                    return $"창고 {data.Economy.StorageCap(level):N0}  ·  건물 최대 Lv.{level}  ·  밤 본부 체력 x{defense.HqHpMultiplier(level):0.0#}";
                 case BuildingType.Shelter:
-                    return $"수용 인원 {BuildingCatalog.ShelterCapacity(level)}명";
+                    return $"수용 인원 {data.Economy.ShelterCapacity(level)}명";
                 case BuildingType.Clinic:
-                    return $"영웅 회복 x{DefenseStats.HeroRegenMultiplier(level):0.0#}  ·  부활 대기 x{DefenseStats.HeroRespawnMultiplier(level):0.0#}";
+                    return $"영웅 회복 x{defense.HeroRegenMultiplier(level):0.0#}  ·  부활 대기 x{defense.HeroRespawnMultiplier(level):0.0#}";
                 case BuildingType.GunTower:
-                    return $"공격력 x{DefenseStats.TowerDamageMultiplier(level):0.0#}  ·  사거리 +{DefenseStats.TowerRangeBonus(level):0.0}  ·  연사 x{1f / DefenseStats.TowerIntervalMultiplier(level):0.0#}";
+                    return $"공격력 x{defense.TowerDamageMultiplier(level):0.0#}  ·  사거리 +{defense.TowerRangeBonus(level):0.0}  ·  연사 x{1f / defense.TowerIntervalMultiplier(level):0.0#}";
                 default:
                     if (!def.IsProducer) return "";
                     string res = ResourceNames[(int)def.Produces];
@@ -481,7 +483,7 @@ namespace ZombieSLG.Battle
 
                 if (b.Upgrading)
                 {
-                    var def = BuildingCatalog.Get(b.Type);
+                    var def = _ctx.Data.Building(b.Type);
                     double total = def.BuildSecondsFor(b.Level + 1);
                     double left = s.RemainingSeconds(b, now);
                     label.Text.text = UiKit.Duration(left);

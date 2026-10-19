@@ -181,7 +181,7 @@ namespace ZombieSLG.Battle
                 Vector3 away = z.Pos - _impact;
                 away.y = 0f;
                 float dist = away.magnitude;
-                float dmg = CombatRules.AreaDamage(_cfg.SkillDamage, dist, _cfg.SkillRadius);
+                float dmg = CombatRules.AreaDamage(_cfg.SkillDamage, dist, _cfg.SkillRadius, _cfg.SkillEdgeFactor);
                 Vector3 dir = dist > 0.01f ? away / dist : Random.insideUnitSphere;
                 zombies.ApplyDamage(z, dmg, dist < _cfg.SkillRadius * 0.35f, dir, 9f, DamageStyle.Skill);
             }

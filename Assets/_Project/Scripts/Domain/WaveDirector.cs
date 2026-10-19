@@ -36,26 +36,28 @@ namespace ZombieSLG.Domain
         }
     }
 
-    /// <summary>Tunables for one night. Defaults are the M0 target values from the GDD (3-minute night).</summary>
+    /// <summary>Tunables for one night, built from balance.csv (wave.*) and hordes.csv.</summary>
     public sealed class WaveSettings
     {
-        public float Duration = 180f;
-        public float BaseRate = 1.3f;     // spawns per second at t=0
-        public float PeakRate = 5.0f;     // spawns per second at RampEnd
-        public float RampEnd = 145f;
-        public float RunnerUnlockTime = 25f;
-        public float BruteUnlockTime = 60f;
-        public float RunnerWeight = 0.27f;
-        public float BruteWeight = 0.08f;
-        public int MaxAlive = 360;
+        public float Duration;
+        public float BaseRate;          // spawns per second at t=0
+        public float PeakRate;          // spawns per second at RampEnd
+        public float RampEnd;
+        public float RunnerUnlockTime;
+        public float BruteUnlockTime;
+        public float RunnerWeight;
+        public float BruteWeight;
+        public int MaxAlive;
+        public float NorthWeight;
+        public float EastWeight;        // west = 1 - north - east
+        public HordeEvent[] Hordes = new HordeEvent[0];
 
-        public HordeEvent[] Hordes =
+        public WaveSettings Clone()
         {
-            new HordeEvent(50f, 30),
-            new HordeEvent(105f, 45),
-            new HordeEvent(150f, 60),
-            new HordeEvent(172f, 75),
-        };
+            var c = (WaveSettings)MemberwiseClone();
+            c.Hordes = (HordeEvent[])Hordes.Clone();
+            return c;
+        }
     }
 
     /// <summary>
@@ -65,6 +67,7 @@ namespace ZombieSLG.Domain
     public sealed class WaveDirector
     {
         private readonly WaveSettings _settings;
+        private readonly NightRules _nightRules;
         private readonly Random _rng;
         private readonly SpawnSide[] _hordeSides;
         private int _nextHorde;
@@ -78,10 +81,11 @@ namespace ZombieSLG.Domain
         public int TotalSpawned { get; private set; }
         public int HordesTriggered => _nextHorde;
 
-        public WaveDirector(WaveSettings settings, int night, int seed)
+        public WaveDirector(WaveSettings settings, NightRules nightRules, int night, int seed)
         {
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
-            Night = NightScaling.Clamp(night);
+            _nightRules = nightRules ?? throw new ArgumentNullException(nameof(nightRules));
+            Night = NightRules.Clamp(night);
             _rng = new Random(seed);
 
             int hordeCount = settings.Hordes?.Length ?? 0;
@@ -95,7 +99,7 @@ namespace ZombieSLG.Domain
             {
                 float t = _settings.RampEnd <= 0f ? 1f : Math.Min(1f, Elapsed / _settings.RampEnd);
                 float rate = _settings.BaseRate + (_settings.PeakRate - _settings.BaseRate) * t;
-                return rate * NightScaling.SpawnRateMultiplier(Night);
+                return rate * _nightRules.SpawnRateMultiplier(Night);
             }
         }
 
@@ -113,7 +117,7 @@ namespace ZombieSLG.Domain
             var hordes = _settings.Hordes;
             while (hordes != null && _nextHorde < hordes.Length && Elapsed >= hordes[_nextHorde].Time)
             {
-                int count = (int)Math.Round(hordes[_nextHorde].Count * NightScaling.HordeSizeMultiplier(Night));
+                int count = (int)Math.Round(hordes[_nextHorde].Count * _nightRules.HordeSizeMultiplier(Night));
                 SpawnSide side = _hordeSides[_nextHorde];
                 for (int i = 0; i < count && room > 0; i++, room--)
                 {
@@ -165,8 +169,8 @@ namespace ZombieSLG.Domain
         private SpawnSide PickSide()
         {
             double r = _rng.NextDouble();
-            if (r < 0.6) return SpawnSide.North;
-            return r < 0.8 ? SpawnSide.East : SpawnSide.West;
+            if (r < _settings.NorthWeight) return SpawnSide.North;
+            return r < _settings.NorthWeight + _settings.EastWeight ? SpawnSide.East : SpawnSide.West;
         }
     }
 }
