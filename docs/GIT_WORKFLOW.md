@@ -61,7 +61,8 @@ git init
 git add .
 git status          # ← Library/, Temp/, Logs/ 가 목록에 없어야 정상
 git commit -m "chore: 첫 커밋 (M0 전투 프로토타입 + M1 기지 루프)"
-git remote add origin https://github.com/<내아이디>/zombie-slg.git
+git branch -M main   # 브랜치가 master로 만들어졌어도 main으로 맞춤
+git remote add origin https://github.com/eudum6-boop/zombie-slg.git
 git push -u origin main
 ```
 
@@ -239,6 +240,9 @@ Unity Personal 라이선스로 GameCI를 쓰는 방법입니다.
 | 증상 | 해결 |
 |---|---|
 | `Library/` 가 커밋됨 | `git rm -r --cached Library` → 커밋 (`.gitignore` 에 있는지 확인) |
+| `src refspec main does not match any` | 브랜치가 `master` 로 만들어진 것. `git branch -M main` 후 다시 push |
+| `Repository not found` | GitHub에 저장소가 아직 없거나 주소·로그인 계정이 다름. 저장소 페이지의 Code ▸ HTTPS 주소로 `git remote set-url origin <주소>` |
+| `remote origin already exists` | 주소를 바꿀 땐 `add` 대신 `git remote set-url origin <주소>` |
 | push가 거절됨 (rejected) | `git pull --rebase` 후 다시 `git push` |
 | 씬 파일 충돌 | 1인 개발이면 거의 없음. 생기면 `git mergetool` (UnityYAMLMerge) 또는 한쪽 선택: `git checkout --ours/--theirs 파일` |
 | 이미지가 포인터 텍스트로 보임 | LFS 미설치 상태로 clone → `git lfs install` 후 `git lfs pull` |

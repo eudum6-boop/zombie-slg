@@ -6,7 +6,7 @@ Unity 6 · URP · 모바일 세로 화면 · 1인 개발
 
 <!-- 플레이 영상 / 스크린샷: docs/media/ 에 넣고 여기에 링크 -->
 
-![Domain tests](https://github.com/<내아이디>/zombie-slg/actions/workflows/domain-tests.yml/badge.svg)
+![Domain tests](https://github.com/eudum6-boop/zombie-slg/actions/workflows/domain-tests.yml/badge.svg)
 
 ---
 
