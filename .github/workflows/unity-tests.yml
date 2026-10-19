@@ -1,0 +1,36 @@
+# Full Unity EditMode tests via GameCI. Manual trigger only until the license secrets are set:
+#   Settings → Secrets and variables → Actions → UNITY_LICENSE, UNITY_EMAIL, UNITY_PASSWORD
+# (see docs/GIT_WORKFLOW.md §8). Then switch "on" to push/pull_request if you want it on every change.
+name: Unity tests
+
+on:
+  workflow_dispatch:
+
+jobs:
+  editmode:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+          restore-keys: Library-
+
+      - uses: game-ci/unity-test-runner@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          testMode: editmode
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unity-test-results
+          path: artifacts

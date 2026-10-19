@@ -1,0 +1,22 @@
+{
+    "name": "ZombieSLG.Battle",
+    "rootNamespace": "ZombieSLG.Battle",
+    "references": [
+        "ZombieSLG.Domain",
+        "ZombieSLG.Application",
+        "ZombieSLG.Infrastructure",
+        "Unity.InputSystem",
+        "Unity.RenderPipelines.Core.Runtime",
+        "Unity.RenderPipelines.Universal.Runtime",
+        "UnityEngine.UI"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -1,0 +1,58 @@
+# ---- Unity generated (project root only) ----
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+/artifacts/
+
+# Unity regenerates these; only ignore them at the root so tools/**/*.csproj stays tracked
+/*.csproj
+/*.sln
+/*.slnx
+
+# ---- IDE ----
+UpgradeLog*.htm
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# ---- .NET test project (tools/) ----
+tools/**/bin/
+tools/**/obj/
+TestResults/
+
+# ---- Builds ----
+*.apk
+*.aab
+*.ipa
+*.unitypackage
+crashlytics-build.properties
+
+# ---- Secrets: never commit ----
+*.keystore
+*.jks
+*.ulf
+*.alf
+*.p12
+*.mobileprovision
+.env
+
+# ---- OS ----
+.DS_Store
+Thumbs.db
+desktop.ini

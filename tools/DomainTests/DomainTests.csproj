@@ -1,0 +1,30 @@
+<!--
+  Runs the Unity-independent layers (Domain + Application) and their EditMode tests with plain .NET,
+  so CI can test game rules on every push without a Unity license.
+  Local: dotnet test tools/DomainTests
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <!-- Match Unity 6's C# version so nothing compiles here that Unity would reject. -->
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="../../Assets/_Project/Scripts/Domain/**/*.cs" />
+    <Compile Include="../../Assets/_Project/Scripts/Application/**/*.cs" />
+    <Compile Include="../../Assets/_Project/Tests/EditMode/**/*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <!-- NUnit 3 matches Unity Test Framework's classic Assert API (NUnit 4 moved it). -->
+    <PackageReference Include="NUnit" Version="3.14.0" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
+  </ItemGroup>
+</Project>

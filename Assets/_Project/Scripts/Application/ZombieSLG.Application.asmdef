@@ -1,0 +1,16 @@
+{
+    "name": "ZombieSLG.Application",
+    "rootNamespace": "ZombieSLG.Application",
+    "references": [
+        "ZombieSLG.Domain"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}
