@@ -63,6 +63,19 @@ namespace ZombieSLG.Application
         }
     }
 
+    public readonly struct HeroesRecruited
+    {
+        public readonly GachaResult[] Results;
+        public HeroesRecruited(GachaResult[] results) { Results = results; }
+    }
+
+    public readonly struct HeroPromoted
+    {
+        public readonly string HeroId;
+        public readonly int Stars;
+        public HeroPromoted(string heroId, int stars) { HeroId = heroId; Stars = stars; }
+    }
+
     public readonly struct NightApplied
     {
         public readonly bool Victory;
@@ -86,6 +99,7 @@ namespace ZombieSLG.Application
         private double _lastSave;
 
         public BaseState State { get; private set; }
+        public HeroRoster Heroes { get; private set; }
         public EventBus Bus => _bus;
         public double Now => _clock.Now;
 
@@ -101,8 +115,9 @@ namespace ZombieSLG.Application
         public void Load()
         {
             double now = _clock.Now;
-            var save = SaveMigrator.Migrate(_repo.Load(), now, _data.Economy);
+            var save = SaveMigrator.Migrate(_repo.Load(), now, _data);
             State = new BaseState(save, _data);
+            Heroes = new HeroRoster(save, _data);
 
             double away = now - save.LastTick;
             double food = save.Food, fuel = save.Fuel, materials = save.Materials;
@@ -145,6 +160,37 @@ namespace ZombieSLG.Application
             return changed;
         }
 
+        public PullBlock Recruit(int count, System.Collections.Generic.List<GachaResult> results)
+        {
+            State.Advance(_clock.Now);
+            var block = Heroes.Pull(count, results);
+            if (block == PullBlock.None)
+            {
+                _bus.Publish(new HeroesRecruited(results.ToArray()));
+                Save();
+            }
+            return block;
+        }
+
+        public PromoteBlock PromoteHero(string heroId)
+        {
+            var block = Heroes.Promote(heroId);
+            if (block == PromoteBlock.None)
+            {
+                _bus.Publish(new HeroPromoted(heroId, Heroes.Stars(heroId)));
+                Save();
+            }
+            return block;
+        }
+
+        public AssignBlock AssignHero(HeroSlot slot, string heroId)
+        {
+            State.Advance(_clock.Now); // bank production at the old manager bonus
+            var block = Heroes.Assign(slot, heroId);
+            if (block == AssignBlock.None) Save();
+            return block;
+        }
+
         public void ApplyNight(bool victory, NightReward reward, int kills)
         {
             State.Advance(_clock.Now);
@@ -163,7 +209,9 @@ namespace ZombieSLG.Application
         public void ResetProgress()
         {
             _repo.Delete();
-            State = new BaseState(SaveMigrator.NewGame(_clock.Now, _data.Economy), _data);
+            var save = SaveMigrator.NewGame(_clock.Now, _data);
+            State = new BaseState(save, _data);
+            Heroes = new HeroRoster(save, _data);
             Save();
         }
 

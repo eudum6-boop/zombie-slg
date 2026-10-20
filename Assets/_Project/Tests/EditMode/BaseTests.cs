@@ -12,7 +12,7 @@ namespace ZombieSLG.Tests
 
         private static BaseState NewBase(out GameSave save)
         {
-            save = SaveMigrator.NewGame(T0, TestData.Data.Economy);
+            save = SaveMigrator.NewGame(T0, TestData.Data);
             return new BaseState(save, TestData.Data);
         }
 
@@ -91,7 +91,7 @@ namespace ZombieSLG.Tests
             // Same start, same upgrade; one save jumps 2h in a single call, the other ticks every second.
             GameSave Make()
             {
-                var g = SaveMigrator.NewGame(T0, TestData.Data.Economy);
+                var g = SaveMigrator.NewGame(T0, TestData.Data);
                 g.Food = 900; g.Fuel = 900; g.Materials = 500; // below cap so production stays visible
                 return g;
             }
@@ -155,7 +155,7 @@ namespace ZombieSLG.Tests
             s.ApplyNightResult(true, new NightReward(10, 20, 30, 2), 50);
             Assert.AreEqual(2, s.Night);
             Assert.AreEqual(TestData.Data.Economy.StartSurvivors + TestData.Data.Night.SurvivorsPerVictory, s.Survivors);
-            Assert.AreEqual(2, s.HeroShards);
+            Assert.AreEqual(TestData.Data.Gacha.StartTickets + 2, s.RecruitTickets, "night tickets are added");
             Assert.AreEqual(50, save.TotalKills);
 
             s.ApplyNightResult(false, new NightReward(1, 1, 1, 0), 5);
@@ -178,7 +178,7 @@ namespace ZombieSLG.Tests
         [Test]
         public void Migrate_Null_CreatesNewGame()
         {
-            var s = SaveMigrator.Migrate(null, 42, TestData.Data.Economy);
+            var s = SaveMigrator.Migrate(null, 42, TestData.Data);
             Assert.AreEqual(GameSave.CurrentVersion, s.Version);
             Assert.AreEqual(42f, (float)s.LastTick, 0.001f);
         }
@@ -188,7 +188,7 @@ namespace ZombieSLG.Tests
         {
             var old = new GameSave { Version = 0, Night = 3, Food = 999 };
             old.Buildings.Add(new BuildingSave { Id = BasePlots.Headquarters, Type = BuildingType.Headquarters, Level = 4 });
-            var s = SaveMigrator.Migrate(old, 100, TestData.Data.Economy);
+            var s = SaveMigrator.Migrate(old, 100, TestData.Data);
             Assert.AreEqual(GameSave.CurrentVersion, s.Version);
             Assert.AreEqual(3, s.Night);
             Assert.AreEqual(4, s.Buildings.First(b => b.Id == BasePlots.Headquarters).Level, "existing data kept");
@@ -246,7 +246,7 @@ namespace ZombieSLG.Tests
         public void Load_ReportsOfflineProgress()
         {
             var clock = new FakeClock { Now = 5000 };
-            var repo = new MemoryRepo { Stored = SaveMigrator.NewGame(5000 - 7200, TestData.Data.Economy) };
+            var repo = new MemoryRepo { Stored = SaveMigrator.NewGame(5000 - 7200, TestData.Data) };
             var bus = new EventBus();
             var reports = new List<OfflineProgressReport>();
             bus.Subscribe<OfflineProgressReport>(reports.Add);

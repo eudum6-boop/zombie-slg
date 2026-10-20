@@ -32,6 +32,9 @@ namespace ZombieSLG.Battle
         public bool IsTargeting { get; private set; }
         public float CooldownRemaining { get; private set; }
         public float Cooldown => _cfg.SkillCooldown;
+
+        /// <summary>Leader hero's skill_power (stars applied).</summary>
+        private float Power => _ctx.Hero != null ? _ctx.Hero.SkillPower : 1f;
         public bool IsReady => CooldownRemaining <= 0f;
 
         public FirebombSkill(BattleContext ctx)
@@ -145,7 +148,7 @@ namespace ZombieSLG.Battle
                 {
                     _burnTick += BurnTickInterval;
                     _ctx.Zombies.QueryRadius(_impact, _cfg.SkillRadius, _hits);
-                    float dmg = _cfg.SkillBurnDps * BurnTickInterval;
+                    float dmg = _cfg.SkillBurnDps * BurnTickInterval * Power;
                     for (int i = 0; i < _hits.Count; i++)
                         _ctx.Zombies.ApplyDamage(_hits[i], dmg, false, Vector3.zero, 0f, DamageStyle.Burn);
                 }
@@ -181,7 +184,7 @@ namespace ZombieSLG.Battle
                 Vector3 away = z.Pos - _impact;
                 away.y = 0f;
                 float dist = away.magnitude;
-                float dmg = CombatRules.AreaDamage(_cfg.SkillDamage, dist, _cfg.SkillRadius, _cfg.SkillEdgeFactor);
+                float dmg = CombatRules.AreaDamage(_cfg.SkillDamage * Power, dist, _cfg.SkillRadius, _cfg.SkillEdgeFactor);
                 Vector3 dir = dist > 0.01f ? away / dist : Random.insideUnitSphere;
                 zombies.ApplyDamage(z, dmg, dist < _cfg.SkillRadius * 0.35f, dir, 9f, DamageStyle.Skill);
             }

@@ -214,7 +214,7 @@ namespace ZombieSLG.Tests
         {
             var win = TestData.Data.Rewards.Calculate(1, true, 100, 0.8f);
             var loss = TestData.Data.Rewards.Calculate(1, false, 100, 0f);
-            Assert.AreEqual(0, loss.HeroShards);
+            Assert.AreEqual(0, loss.Tickets);
             Assert.Less(loss.Food, win.Food);
         }
 

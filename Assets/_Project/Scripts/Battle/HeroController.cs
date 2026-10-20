@@ -33,7 +33,11 @@ namespace ZombieSLG.Battle
         public float RegenMultiplier { get; set; } = 1f;
         public float RespawnMultiplier { get; set; } = 1f;
 
-        public float MaxHp => _cfg.HeroMaxHp;
+        public float MaxHp => _stats.MaxHp;
+        public float SkillPower => _stats.SkillPower;
+        public string HeroName { get; private set; } = "";
+        private HeroCombatStats _stats = new HeroCombatStats(300f, 13f, 0.25f, 7.5f, 5.5f, 0.1f, 1f);
+        private Renderer _bodyRenderer;
         public float Hp { get; private set; }
         public bool IsAlive => _respawnTimer <= 0f;
         public float RespawnRemaining => Mathf.Max(0f, _respawnTimer);
@@ -51,7 +55,8 @@ namespace ZombieSLG.Battle
             var suit = m.Lit(new Color(0.20f, 0.42f, 0.78f));
             var dark = m.Lit(new Color(0.15f, 0.16f, 0.18f));
             var skin = m.Lit(new Color(0.93f, 0.76f, 0.6f));
-            m.Primitive(PrimitiveType.Capsule, "Body", _visual, new Vector3(0f, 0.75f, 0f), new Vector3(0.75f, 0.75f, 0.75f), suit);
+            _bodyRenderer = m.Primitive(PrimitiveType.Capsule, "Body", _visual, new Vector3(0f, 0.75f, 0f), new Vector3(0.75f, 0.75f, 0.75f), suit)
+                .GetComponent<Renderer>();
             m.Primitive(PrimitiveType.Sphere, "Head", _visual, new Vector3(0f, 1.62f, 0f), new Vector3(0.45f, 0.45f, 0.45f), skin);
             m.Primitive(PrimitiveType.Cube, "Backpack", _visual, new Vector3(0f, 0.95f, -0.38f), new Vector3(0.5f, 0.55f, 0.25f), dark);
             m.Primitive(PrimitiveType.Cube, "Gun", _visual, new Vector3(0.25f, 1.0f, 0.45f), new Vector3(0.12f, 0.14f, 0.8f), dark);
@@ -74,6 +79,15 @@ namespace ZombieSLG.Battle
             _hurtBlock = new MaterialPropertyBlock();
             _hurtBlock.SetColor(BaseColorId, new Color(1.6f, 0.3f, 0.3f));
             ResetState();
+        }
+
+        /// <summary>Sets the night's leader: stats (stars applied) and body colour from heroes.csv.</summary>
+        public void ApplyHero(string heroName, HeroCombatStats stats, Color color)
+        {
+            HeroName = heroName;
+            _stats = stats;
+            if (_bodyRenderer != null) _bodyRenderer.sharedMaterial = _ctx.Materials.Lit(color);
+            Hp = MaxHp;
         }
 
         public void ResetState()
@@ -139,7 +153,7 @@ namespace ZombieSLG.Battle
                 }
                 else
                 {
-                    Vector3 step = to / dist * Mathf.Min(dist, _cfg.HeroMoveSpeed * dt);
+                    Vector3 step = to / dist * Mathf.Min(dist, _stats.MoveSpeed * dt);
                     Vector3 next = pos + step;
                     var map = _ctx.Map;
                     if (!map.IsWalkableForHero(next))
@@ -161,7 +175,7 @@ namespace ZombieSLG.Battle
             else Hp = Mathf.Min(MaxHp, Hp + _cfg.HeroRegenPerSecond * RegenMultiplier * dt);
 
             // Auto-fire at the nearest zombie.
-            var target = _ctx.Zombies.FindNearest(pos, _cfg.HeroRange);
+            var target = _ctx.Zombies.FindNearest(pos, _stats.Range);
             Vector3 face = moving ? (_moveTarget - pos) : Vector3.zero;
             if (target != null) face = target.Pos - pos;
             face.y = 0f;
@@ -171,7 +185,7 @@ namespace ZombieSLG.Battle
             _fireTimer -= dt;
             if (target != null && _fireTimer <= 0f)
             {
-                _fireTimer = _cfg.HeroFireInterval;
+                _fireTimer = _stats.FireInterval;
                 Shoot(target);
             }
 
@@ -191,7 +205,7 @@ namespace ZombieSLG.Battle
 
         private void Shoot(ZombieAgent target)
         {
-            var hit = CombatRules.RollHit(_cfg.HeroDamage, _cfg.HeroCritChance, _cfg.HeroCritMultiplier, _ctx.Roll());
+            var hit = CombatRules.RollHit(_stats.Damage, _stats.CritChance, _cfg.HeroCritMultiplier, _ctx.Roll());
             Vector3 from = _muzzle.position;
             Vector3 to = target.AimPoint + Random.insideUnitSphere * 0.1f;
 

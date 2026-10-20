@@ -38,6 +38,27 @@ namespace ZombieSLG.Domain
     }
 
     [Serializable]
+    public sealed class HeroRow
+    {
+        public string Id;
+        public string Name;
+        public string Rarity;
+        public string Role;
+        public float Hp;
+        public float Damage;
+        public float FireInterval;
+        public float Range;
+        public float MoveSpeed;
+        public float CritChance;
+        public float SkillPower;
+        public double EconBonus;
+        public double ScoutBonus;
+        public string Color;
+        public bool Starter;
+        public string Description;
+    }
+
+    [Serializable]
     public sealed class HordeRow
     {
         public float Time;
@@ -60,12 +81,14 @@ namespace ZombieSLG.Domain
         public const string BuildingsFile = "buildings.csv";
         public const string HordesFile = "hordes.csv";
         public const string BalanceFile = "balance.csv";
-        public static readonly string[] FileNames = { ZombiesFile, BuildingsFile, HordesFile, BalanceFile };
+        public const string HeroesFile = "heroes.csv";
+        public static readonly string[] FileNames = { ZombiesFile, BuildingsFile, HordesFile, BalanceFile, HeroesFile };
 
         public List<ZombieRow> Zombies = new List<ZombieRow>();
         public List<BuildingRow> Buildings = new List<BuildingRow>();
         public List<HordeRow> Hordes = new List<HordeRow>();
         public List<BalanceRow> Balance = new List<BalanceRow>();
+        public List<HeroRow> Heroes = new List<HeroRow>();
 
         /// <param name="readFile">Returns the text of a table file by name, or null if missing.</param>
         public static GameTables Parse(Func<string, string> readFile, List<string> errors)
@@ -116,6 +139,29 @@ namespace ZombieSLG.Domain
             if (balance != null)
                 foreach (var r in balance.Records)
                     t.Balance.Add(new BalanceRow { Key = r.Str("key"), Value = r.Num("value", errors), Note = r.Str("note") });
+
+            var heroes = Load(readFile, HeroesFile, errors);
+            if (heroes != null)
+                foreach (var r in heroes.Records)
+                    t.Heroes.Add(new HeroRow
+                    {
+                        Id = r.Str("id"),
+                        Name = r.Str("name"),
+                        Rarity = r.Str("rarity"),
+                        Role = r.Str("role"),
+                        Hp = (float)r.Num("hp", errors, 0),
+                        Damage = (float)r.Num("damage", errors, 0),
+                        FireInterval = (float)r.Num("fire_interval", errors, 0),
+                        Range = (float)r.Num("range", errors, 0),
+                        MoveSpeed = (float)r.Num("move_speed", errors, 0),
+                        CritChance = (float)r.Num("crit_chance", errors, 0),
+                        SkillPower = (float)r.Num("skill_power", errors, 0),
+                        EconBonus = r.Num("econ_bonus", errors, 0),
+                        ScoutBonus = r.Num("scout_bonus", errors, 0),
+                        Color = r.Str("color"),
+                        Starter = r.Int("starter", errors, 0) != 0,
+                        Description = r.Str("description"),
+                    });
 
             return t;
         }

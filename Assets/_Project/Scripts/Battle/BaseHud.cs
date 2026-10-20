@@ -35,6 +35,9 @@ namespace ZombieSLG.Battle
         // bottom
         private GameObject _nightButton;
         private Text _nightLabel;
+        private GameObject _heroButton;
+        private GameObject _recruitButton;
+        private Text _recruitLabel;
         private Text _hintText;
 
         // building panel
@@ -86,9 +89,11 @@ namespace ZombieSLG.Battle
         private int _selected = -1;
 
         public bool Visible => _canvas.gameObject.activeSelf;
+        public RectTransform Root => _root;
 
         public BaseHud(BattleContext ctx, BaseView view, Transform parent,
-            Action onNight, Action<int> onUpgrade, Action<int, int> onWorkers, Action onClosePanel)
+            Action onNight, Action<int> onUpgrade, Action<int, int> onWorkers, Action onClosePanel,
+            Action onHeroes, Action onRecruit)
         {
             _ctx = ctx;
             _view = view;
@@ -105,7 +110,7 @@ namespace ZombieSLG.Battle
             for (int i = 0; i < 24; i++) _floaters.Add(CreateFloater(labelLayer));
 
             BuildTopBar();
-            BuildBottom(onNight);
+            BuildBottom(onNight, onHeroes, onRecruit);
             BuildPanel(onClosePanel);
             BuildOfflinePopup();
         }
@@ -140,11 +145,19 @@ namespace ZombieSLG.Battle
             }
         }
 
-        private void BuildBottom(Action onNight)
+        private void BuildBottom(Action onNight, Action onHeroes, Action onRecruit)
         {
-            var btn = UiKit.Button("NightButton", _root, "", 50, new Color(0.62f, 0.2f, 0.07f), onNight, out _nightLabel);
-            UiKit.Place((RectTransform)btn.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 70f), new Vector2(760f, 180f));
+            var btn = UiKit.Button("NightButton", _root, "", 46, new Color(0.62f, 0.2f, 0.07f), onNight, out _nightLabel);
+            UiKit.Place((RectTransform)btn.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 70f), new Vector2(600f, 180f));
             _nightButton = btn.gameObject;
+
+            var heroes = UiKit.Button("HeroButton", _root, "영웅", 42, new Color(0.3f, 0.35f, 0.55f), onHeroes, out _);
+            UiKit.Place((RectTransform)heroes.transform, Vector2.zero, Vector2.zero, new Vector2(30f, 70f), new Vector2(190f, 180f));
+            _heroButton = heroes.gameObject;
+
+            var recruit = UiKit.Button("RecruitButton", _root, "", 40, new Color(0.55f, 0.35f, 0.15f), onRecruit, out _recruitLabel);
+            UiKit.Place((RectTransform)recruit.transform, new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-30f, 70f), new Vector2(190f, 180f));
+            _recruitButton = recruit.gameObject;
 
             _hintText = UiKit.Text("Hint", _root, "건물을 탭해서 짓거나 업그레이드하세요", 32, new Color(1f, 1f, 1f, 0.7f), TextAnchor.MiddleCenter);
             UiKit.Place(_hintText.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 280f), new Vector2(1000f, 60f));
@@ -267,6 +280,8 @@ namespace ZombieSLG.Battle
             _selected = id;
             _panel.SetActive(id >= 0);
             _nightButton.SetActive(id < 0);
+            _heroButton.SetActive(id < 0);
+            _recruitButton.SetActive(id < 0);
             _hintText.gameObject.SetActive(id < 0);
         }
 
@@ -339,7 +354,8 @@ namespace ZombieSLG.Battle
                 _resRate[i].color = full ? new Color(1f, 0.8f, 0.3f) : (rate >= 0 ? UiKit.Good : UiKit.Bad);
             }
 
-            _nightLabel.text = $"밤 맞이하기  ▶  NIGHT {s.Night}";
+            _nightLabel.text = $"밤 맞이하기 ▶\n<size=32>NIGHT {s.Night}</size>";
+            _recruitLabel.text = $"모집\n<size=28>{s.RecruitTickets}장</size>";
 
             TickLabels(s, now, cam);
             TickFloaters(udt, cam);

@@ -100,8 +100,14 @@ namespace ZombieSLG.Battle
                 onNight: _flow.OnNightButton,
                 onUpgrade: _flow.OnUpgrade,
                 onWorkers: _flow.OnWorkers,
-                onClosePanel: _flow.OnClosePanel);
+                onClosePanel: _flow.OnClosePanel,
+                onHeroes: _flow.OnHeroesButton,
+                onRecruit: _flow.OnRecruitButton);
             _flow.AttachHud(baseHud);
+            _flow.AttachHeroUi(new HeroUi(ctx, baseHud.Root,
+                onPromote: _flow.OnPromote,
+                onAssign: _flow.OnAssign,
+                onRecruit: _flow.OnRecruit));
             _flow.Start();
         }
 

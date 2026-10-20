@@ -114,13 +114,13 @@ namespace ZombieSLG.Tests
             var tables = TestData.Tables(errors);
             tables.Zombies.RemoveAll(z => z.Id == "Brute");
             tables.Buildings[0].Id = "Castle";
-            tables.Balance.RemoveAll(b => b.Key == "hero.damage");
+            tables.Balance.RemoveAll(b => b.Key == "tower.damage");
 
             var e = new List<string>();
             Assert.IsNull(GameDataBuilder.Build(tables, e));
             Assert.IsTrue(e.Any(m => m.Contains("Brute")), "missing zombie");
             Assert.IsTrue(e.Any(m => m.Contains("Castle")), "unknown building id");
-            Assert.IsTrue(e.Any(m => m.Contains("hero.damage")), "missing balance key");
+            Assert.IsTrue(e.Any(m => m.Contains("tower.damage")), "missing balance key");
         }
 
         [Test]
@@ -143,11 +143,11 @@ namespace ZombieSLG.Tests
             var d = TestData.Fresh();
             int applied = d.Balance.ApplyOverrides(new[]
             {
-                new KeyValuePair<string, double>("hero.damage", 99),
+                new KeyValuePair<string, double>("tower.damage", 99),
                 new KeyValuePair<string, double>("not.a.key", 1),
             });
             Assert.AreEqual(1, applied);
-            Assert.AreEqual(99.0, d.Balance.Get("hero.damage"), 1e-9);
+            Assert.AreEqual(99.0, d.Balance.Get("tower.damage"), 1e-9);
             Assert.IsFalse(d.Balance.Has("not.a.key"));
         }
 
