@@ -64,7 +64,10 @@ namespace ZombieSLG.Domain
         public int Survivors => _s.Survivors;
         public double Morale => _s.Morale;
         public bool IsStarving => _s.Starving;
-        public int HeroShards => _s.HeroShards;
+        public int RecruitTickets => _s.RecruitTickets;
+
+        /// <summary>Production bonus from the hero in the Manager slot (0.1 = +10%).</summary>
+        public double ManagerBonus => HeroRoster.SlotBonus(_s, _data, HeroSlot.Manager);
 
         public BuildingSave Get(int id)
         {
@@ -137,7 +140,7 @@ namespace ZombieSLG.Domain
         {
             var def = _data.Building(b.Type);
             if (!def.IsProducer) return 0;
-            return def.RatePerHour(b.Level) * Staffing(b) * MoraleMultiplier;
+            return def.RatePerHour(b.Level) * Staffing(b) * MoraleMultiplier * (1 + ManagerBonus);
         }
 
         public double NetRatePerHour(ResourceType type)
@@ -280,7 +283,7 @@ namespace ZombieSLG.Domain
             _s.Food += reward.Food;
             _s.Fuel += reward.Fuel;
             _s.Materials += reward.Materials;
-            _s.HeroShards += reward.HeroShards;
+            _s.RecruitTickets += reward.Tickets;
             _s.TotalKills += Math.Max(0, kills);
 
             if (!victory) return;

@@ -70,14 +70,14 @@ namespace ZombieSLG.Domain
         public readonly int Food;
         public readonly int Fuel;
         public readonly int Materials;
-        public readonly int HeroShards;
+        public readonly int Tickets;
 
-        public NightReward(int food, int fuel, int materials, int heroShards)
+        public NightReward(int food, int fuel, int materials, int tickets)
         {
             Food = food;
             Fuel = fuel;
             Materials = materials;
-            HeroShards = heroShards;
+            Tickets = tickets;
         }
     }
 

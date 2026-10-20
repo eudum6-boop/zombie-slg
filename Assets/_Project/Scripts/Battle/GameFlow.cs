@@ -23,6 +23,8 @@ namespace ZombieSLG.Battle
         private readonly PointerInput _input;
         private readonly List<System.IDisposable> _subs = new List<System.IDisposable>();
         private BaseHud _hud;
+        private HeroUi _heroUi;
+        private readonly List<GachaResult> _pullResults = new List<GachaResult>(10);
 
         private Phase _phase = Phase.Day;
         private float _transition;
@@ -51,6 +53,7 @@ namespace ZombieSLG.Battle
 
         /// <summary>Must be set before <see cref="Start"/>; the HUD needs the flow for its callbacks.</summary>
         public void AttachHud(BaseHud hud) => _hud = hud;
+        public void AttachHeroUi(HeroUi heroUi) => _heroUi = heroUi;
 
         public void Start()
         {
@@ -71,6 +74,7 @@ namespace ZombieSLG.Battle
             if (_phase != Phase.Day) return;
             _ctx.Feedback.Sfx.Play(SfxId.Click, 0f);
             Select(-1);
+            _heroUi?.Close();
             _hud.SetVisible(false);
             _phase = Phase.Dusk;
             _transition = 0f;
@@ -93,6 +97,72 @@ namespace ZombieSLG.Battle
 
         public void OnClosePanel() => Select(-1);
 
+        // ---- heroes / recruiting ----
+
+        public void OnHeroesButton()
+        {
+            if (_phase != Phase.Day) return;
+            _ctx.Feedback.Sfx.Play(SfxId.Click, 0f);
+            Select(-1);
+            _heroUi.OpenHeroes(_base.Heroes);
+        }
+
+        public void OnRecruitButton()
+        {
+            if (_phase != Phase.Day) return;
+            _ctx.Feedback.Sfx.Play(SfxId.Click, 0f);
+            Select(-1);
+            _heroUi.OpenRecruit(_base.Heroes);
+        }
+
+        public void OnRecruit(int count)
+        {
+            var block = _base.Recruit(count, _pullResults);
+            if (block == PullBlock.NotEnoughTickets)
+            {
+                _ctx.Feedback.Sfx.Play(SfxId.HeroHurt, 0f);
+                Toast("모집권이 부족합니다 — 밤을 버티면 별 개수만큼 받습니다", UiKit.Bad);
+                return;
+            }
+            if (block != PullBlock.None) return;
+
+            _heroUi.ShowResults(_pullResults);
+            bool legendary = _pullResults.Exists(r => r.Rarity == HeroRarity.Legendary);
+            bool epic = _pullResults.Exists(r => r.Rarity == HeroRarity.Epic);
+            if (legendary)
+            {
+                _ctx.Feedback.Sfx.Play(SfxId.Victory, 0f);
+                _ctx.Feedback.Shake(0.35f);
+            }
+            else _ctx.Feedback.Sfx.Play(epic ? SfxId.Victory : SfxId.Click, 0f);
+        }
+
+        public void OnPromote(string heroId)
+        {
+            if (_base.PromoteHero(heroId) != PromoteBlock.None) return;
+            _ctx.Feedback.Sfx.Play(SfxId.Victory, 0f);
+            Toast($"{_ctx.Data.Hero(heroId).Name} ★{_base.Heroes.Stars(heroId)} 승급!", new Color(1f, 0.85f, 0.4f));
+        }
+
+        public void OnAssign(HeroSlot slot, string heroId)
+        {
+            if (_base.AssignHero(slot, heroId) != AssignBlock.None) return;
+            _ctx.Feedback.Sfx.Play(SfxId.Click, 0f);
+            string name = _ctx.Data.Hero(heroId).Name;
+            string where = slot == HeroSlot.Leader ? "밤 출전 영웅" : slot == HeroSlot.Manager ? "기지 관리자" : "정찰대장";
+            Toast($"{name} → {where}", new Color(0.6f, 0.85f, 1f));
+        }
+
+        private NightSetup BuildNightSetup(BaseState state)
+        {
+            var heroes = _base.Heroes;
+            var leader = heroes.Leader;
+            return new NightSetup(state.Night, state.HqLevel, state.LevelOf(BasePlots.Clinic),
+                new[] { state.LevelOf(BasePlots.TowerA), state.LevelOf(BasePlots.TowerB) },
+                leader.Name, heroes.CombatStats(leader.Id), HeroUi.ParseHex(leader.ColorHex, new Color(0.2f, 0.42f, 0.78f)),
+                heroes.ScoutBonus);
+        }
+
         // ------------------------------------------------------------------ frame
 
         public void Tick(float dt)
@@ -108,8 +178,16 @@ namespace ZombieSLG.Battle
             switch (_phase)
             {
                 case Phase.Day:
-                    HandleDayInput();
-                    EmitProductionFloats(dt, state);
+                    if (_heroUi != null && _heroUi.IsOpen)
+                    {
+                        _heroUi.Refresh(_base.Heroes);
+                        _heroUi.Tick(Time.unscaledDeltaTime);
+                    }
+                    else
+                    {
+                        HandleDayInput();
+                        EmitProductionFloats(dt, state);
+                    }
                     _hud.Tick(state, _base.Now);
                     break;
 
@@ -119,8 +197,7 @@ namespace ZombieSLG.Battle
                     if (_transition >= TransitionSeconds)
                     {
                         _phase = Phase.Night;
-                        _battle.BeginNight(new NightSetup(state.Night, state.HqLevel, state.LevelOf(BasePlots.Clinic),
-                            new[] { state.LevelOf(BasePlots.TowerA), state.LevelOf(BasePlots.TowerB) }));
+                        _battle.BeginNight(BuildNightSetup(state));
                     }
                     break;
 

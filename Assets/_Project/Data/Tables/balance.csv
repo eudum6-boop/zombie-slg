@@ -35,6 +35,7 @@ reward.materials_per_kill,1.5,
 reward.defeat_factor,0.3,패배 시 보상 배율
 reward.star3_hp,0.7,별 3개 본부 체력 비율
 reward.star2_hp,0.3,별 2개 본부 체력 비율
+reward.tickets_per_star,1,밤 보상 별 1개당 모집권
 # ---- 웨이브 ----
 wave.duration,180,밤 길이(초)
 wave.base_rate,1.3,시작 시 초당 등장 수
@@ -57,13 +58,7 @@ defense.tower_rate_per_level,0.08,포탑 레벨당 연사 증가율
 defense.clinic_regen_per_level,0.15,의무실 레벨당 영웅 회복 증가율
 defense.clinic_respawn_per_level,0.1,의무실 레벨당 부활 대기 감소율
 defense.clinic_respawn_min,0.4,부활 대기 최소 배율
-# ---- 영웅 ----
-hero.max_hp,300,
-hero.move_speed,5.5,
-hero.range,7.5,
-hero.fire_interval,0.25,초
-hero.damage,13,
-hero.crit_chance,0.14,
+# ---- 영웅 공통 (개별 능력치는 heroes.csv) ----
 hero.crit_multiplier,2,
 hero.regen_per_second,6.5,교전하지 않을 때
 hero.respawn_seconds,6,
@@ -80,3 +75,22 @@ tower.fire_interval,0.18,
 tower.damage,6,
 tower.crit_chance,0.05,
 tower.crit_multiplier,2,
+# ---- 영웅 승급 ----
+hero.star_stat_bonus,0.15,승급 1단계당 능력치·보너스 증가율
+hero.max_stars,5,최대 승급 단계 (star_cost_2 ~ star_cost_N 행이 모두 있어야 함)
+hero.star_cost_2,10,★2 승급에 필요한 조각
+hero.star_cost_3,20,★3 승급에 필요한 조각
+hero.star_cost_4,40,★4 승급에 필요한 조각
+hero.star_cost_5,80,★5 승급에 필요한 조각
+hero.dup_shards_common,5,일반 영웅 중복 시 조각
+hero.dup_shards_rare,10,희귀 영웅 중복 시 조각
+hero.dup_shards_epic,20,영웅 등급 중복 시 조각
+hero.dup_shards_legendary,40,전설 영웅 중복 시 조각
+# ---- 모집(가챠) — 확률 합계는 1이어야 합니다 ----
+gacha.rate_common,0.58,일반 등급 확률
+gacha.rate_rare,0.30,희귀 등급 확률
+gacha.rate_epic,0.10,영웅 등급 확률
+gacha.rate_legendary,0.02,전설 등급 확률
+gacha.pity_legendary,50,이 횟수 안에 전설 확정 (천장)
+gacha.ten_pull_guarantee_rare,1,10회 모집 시 희귀 이상 1명 확정 (1=켬 0=끔)
+gacha.start_tickets,10,새 게임 시작 모집권

@@ -27,19 +27,14 @@ namespace ZombieSLG.Battle
     }
 
     /// <summary>
-    /// Player-side battle numbers, read from balance.csv (hero.*, tower.*, skill.firebomb.*, hq.*).
+    /// Player-side battle numbers, read from balance.csv (hero.* shared rules, tower.*, skill.firebomb.*, hq.*).
     /// Debug values come from the BattleBootstrap inspector.
     /// </summary>
     public sealed class BattleConfig
     {
         public float HqMaxHp;
 
-        public float HeroMaxHp;
-        public float HeroMoveSpeed;
-        public float HeroRange;
-        public float HeroFireInterval;
-        public float HeroDamage;
-        public float HeroCritChance;
+        // Per-hero stats come from heroes.csv (HeroController.ApplyHero); these are shared rules.
         public float HeroCritMultiplier;
         public float HeroRegenPerSecond;
         public float HeroRespawnSeconds;
@@ -67,12 +62,6 @@ namespace ZombieSLG.Battle
         {
             HqMaxHp = b.F("hq.max_hp"),
 
-            HeroMaxHp = b.F("hero.max_hp"),
-            HeroMoveSpeed = b.F("hero.move_speed"),
-            HeroRange = b.F("hero.range"),
-            HeroFireInterval = b.F("hero.fire_interval"),
-            HeroDamage = b.F("hero.damage"),
-            HeroCritChance = b.F("hero.crit_chance"),
             HeroCritMultiplier = b.F("hero.crit_multiplier"),
             HeroRegenPerSecond = b.F("hero.regen_per_second"),
             HeroRespawnSeconds = b.F("hero.respawn_seconds"),

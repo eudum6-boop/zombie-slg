@@ -79,7 +79,7 @@ namespace ZombieSLG.EditorTools
             AssetDatabase.SaveAssets();
 
             Debug.Log($"[ZombieSLG] 데이터 테이블 가져오기 완료 — 좀비 {tables.Zombies.Count}, 건물 {tables.Buildings.Count}, " +
-                      $"대규모 습격 {tables.Hordes.Count}, 수치 {tables.Balance.Count}개");
+                      $"대규모 습격 {tables.Hordes.Count}, 영웅 {tables.Heroes.Count}, 수치 {tables.Balance.Count}개");
             return true;
         }
 

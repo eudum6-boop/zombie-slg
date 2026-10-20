@@ -1,0 +1,12 @@
+# 영웅. rarity: Common/Rare/Epic/Legendary, role: Combat(밤 출전)/Economy(관리: 기지 생산 보너스)/Explore(정찰: 밤 보상 보너스)
+# 전투 능력치(hp~skill_power)는 Combat 영웅만 사용합니다. econ_bonus/scout_bonus는 ★1 기준 비율(0.1 = +10%).
+# starter=1 인 영웅은 새 게임(과 기존 세이브)에 지급되고 출전 영웅으로 배치됩니다. 정확히 1명이어야 합니다.
+id,name,rarity,role,hp,damage,fire_interval,range,move_speed,crit_chance,skill_power,econ_bonus,scout_bonus,color,starter,description
+minjun,강민준,Common,Combat,300,13,0.25,7.5,5.5,0.14,1.0,0,0,3D6FC7,1,택배 기사 출신. 무난한 소총으로 기지를 지킨다.
+seoyeon,윤서연,Common,Economy,0,0,0,0,0,0,0,0.10,0,6FA35A,0,구청 공무원 출신. 배급표를 만들면 낭비가 사라진다.
+dohyun,박도현,Common,Explore,0,0,0,0,0,0,0,0,0.10,A07A4A,0,배달 오토바이로 골목을 누비던 정찰병.
+jiwoo,한지우,Rare,Combat,260,10,0.17,7,6.2,0.12,1.0,0,0,2FA8A8,0,사격 동아리 에이스. 연사가 빠르고 몸이 가볍다.
+hajun,최하준,Rare,Economy,0,0,0,0,0,0,0,0.18,0,C9A227,0,전직 물류센터장. 사람을 적재적소에 배치한다.
+eunji,오은지,Epic,Combat,240,34,0.45,10,5.2,0.25,1.1,0,0,8A55C9,0,전직 국가대표 사격 선수. 멀리서 한 발로 끝낸다.
+taeyang,서태양,Epic,Explore,0,0,0,0,0,0,0,0,0.25,D9772B,0,산악구조대원. 남들이 못 가는 곳에서 물자를 찾아온다.
+sora,김소라,Legendary,Combat,380,16,0.24,8,5.6,0.15,1.8,0,0,E0483D,0,소방관 출신. 화염 폭격의 위력이 압도적이다.

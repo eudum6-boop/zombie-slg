@@ -13,13 +13,22 @@ namespace ZombieSLG.Battle
         public readonly int HqLevel;
         public readonly int ClinicLevel;
         public readonly int[] TowerLevels;
+        public readonly string LeaderName;
+        public readonly HeroCombatStats LeaderStats;
+        public readonly Color LeaderColor;
+        public readonly double ScoutBonus;
 
-        public NightSetup(int night, int hqLevel, int clinicLevel, int[] towerLevels)
+        public NightSetup(int night, int hqLevel, int clinicLevel, int[] towerLevels,
+            string leaderName, HeroCombatStats leaderStats, Color leaderColor, double scoutBonus)
         {
             Night = night;
             HqLevel = hqLevel;
             ClinicLevel = clinicLevel;
             TowerLevels = towerLevels;
+            LeaderName = leaderName;
+            LeaderStats = leaderStats;
+            LeaderColor = leaderColor;
+            ScoutBonus = scoutBonus;
         }
     }
 
@@ -60,6 +69,7 @@ namespace ZombieSLG.Battle
         private float _resultDelay;
         private string _pendingResultBody;
         private int _lastHordeWarned = -1;
+        private double _scoutBonus;
 
         /// <summary>Raised when the player leaves the result screen.</summary>
         public event Action<NightOutcome> ReturnedToBase;
@@ -96,8 +106,10 @@ namespace ZombieSLG.Battle
             ctx.Hq.ResetState(ctx.Config.HqMaxHp * defense.HqHpMultiplier(setup.HqLevel));
             ctx.Hero.RegenMultiplier = defense.HeroRegenMultiplier(setup.ClinicLevel);
             ctx.Hero.RespawnMultiplier = defense.HeroRespawnMultiplier(setup.ClinicLevel);
+            ctx.Hero.ApplyHero(setup.LeaderName, setup.LeaderStats, setup.LeaderColor);
             ctx.Hero.ResetState();
             ctx.Skill.ResetState();
+            _scoutBonus = setup.ScoutBonus;
             for (int i = 0; i < ctx.Towers.Count; i++)
             {
                 int lv = setup.TowerLevels != null && i < setup.TowerLevels.Length ? setup.TowerLevels[i] : 0;
@@ -113,7 +125,7 @@ namespace ZombieSLG.Battle
             ctx.Hud.HideOverlays();
             ctx.Hud.SetBattleVisible(true);
             ctx.Hud.ShowBanner("NIGHT " + _night + "\n습격 시작!", 1.8f, new Color(1f, 0.55f, 0.15f));
-            ctx.Hud.SetHint("땅을 탭해 영웅을 이동하세요");
+            if (!string.IsNullOrEmpty(setup.LeaderName)) ctx.Hud.SetHint($"출전 영웅: {setup.LeaderName}  ·  땅을 탭해 이동");
             ctx.Feedback.Sfx.Play(SfxId.Siren, 0f);
             SkyLighting.Dawn(ctx.Sun, 0f);
         }
@@ -246,7 +258,7 @@ namespace ZombieSLG.Battle
 
             int kills = ctx.Zombies.Kills;
             float hpRatio = ctx.Hq.HpRatio;
-            var reward = ctx.Data.Rewards.Calculate(_night, victory, kills, hpRatio);
+            var reward = ctx.Data.Rewards.Calculate(_night, victory, kills, hpRatio, _scoutBonus);
             int stars = ctx.Data.Rewards.Stars(victory, hpRatio);
             _outcome = new NightOutcome(victory, reward, kills, hpRatio);
 
@@ -269,7 +281,8 @@ namespace ZombieSLG.Battle
                 $"생존 시간  {FormatTime(_director.Elapsed)}\n\n" +
                 "<color=#ffb060>— 보상 —</color>\n" +
                 $"식량 +{reward.Food}    연료 +{reward.Fuel}\n" +
-                $"자재 +{reward.Materials}    영웅 조각 +{reward.HeroShards}" +
+                $"자재 +{reward.Materials}    모집권 +{reward.Tickets}" +
+                (_scoutBonus > 0 ? $"\n<color=#e0b060>정찰 보너스 +{_scoutBonus * 100:0}%</color>" : "") +
                 (victory ? "\n\n<color=#9fd8ff>새 생존자가 기지를 찾아올 수 있습니다</color>" : "\n\n<color=#9aa4b0>같은 밤에 다시 도전합니다</color>");
             _resultDelay = 1.6f;
         }

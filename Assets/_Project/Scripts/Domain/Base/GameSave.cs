@@ -10,13 +10,14 @@ namespace ZombieSLG.Domain
     [Serializable]
     public sealed class GameSave
     {
-        public const int CurrentVersion = 1;
+        public const int CurrentVersion = 2;
 
         public int Version;
         public double LastTick;
         public double Food;
         public double Fuel;
         public double Materials;
+        /// <summary>v1 generic shards; converted to recruit tickets by the v2 migration.</summary>
         public int HeroShards;
         public int Night = 1;
         public int BestNight;
@@ -25,6 +26,24 @@ namespace ZombieSLG.Domain
         public double Morale;
         public bool Starving;
         public List<BuildingSave> Buildings = new List<BuildingSave>();
+
+        // v2: heroes & recruiting
+        public int RecruitTickets;
+        public int GachaSeed;
+        public int GachaPulls;
+        public int GachaPity;
+        public string LeaderHero;
+        public string ManagerHero;
+        public string ScoutHero;
+        public List<HeroSave> Heroes = new List<HeroSave>();
+    }
+
+    [Serializable]
+    public sealed class HeroSave
+    {
+        public string Id;
+        public int Stars;
+        public int Shards;
     }
 
     [Serializable]
@@ -66,8 +85,9 @@ namespace ZombieSLG.Domain
 
     public static class SaveMigrator
     {
-        public static GameSave NewGame(double now, EconomyRules economy)
+        public static GameSave NewGame(double now, GameData data)
         {
+            var economy = data.Economy;
             var s = new GameSave
             {
                 Version = GameSave.CurrentVersion,
@@ -78,8 +98,11 @@ namespace ZombieSLG.Domain
                 Night = 1,
                 Survivors = economy.StartSurvivors,
                 Morale = economy.StartMorale,
+                RecruitTickets = data.Gacha.StartTickets,
+                GachaSeed = SeedFrom(now),
             };
             EnsureBuildings(s);
+            EnsureStarterHero(s, data);
             return s;
         }
 
@@ -87,10 +110,12 @@ namespace ZombieSLG.Domain
         /// Upgrades an older save in place. Also repairs missing plots, so adding a building in a
         /// later update never breaks existing players.
         /// </summary>
-        public static GameSave Migrate(GameSave s, double now, EconomyRules economy)
+        public static GameSave Migrate(GameSave s, double now, GameData data)
         {
-            if (s == null) return NewGame(now, economy);
+            if (s == null) return NewGame(now, data);
+            var economy = data.Economy;
             if (s.Buildings == null) s.Buildings = new List<BuildingSave>();
+            if (s.Heroes == null) s.Heroes = new List<HeroSave>();
 
             if (s.Version < 1)
             {
@@ -101,9 +126,41 @@ namespace ZombieSLG.Domain
                 if (s.LastTick <= 0) s.LastTick = now;
             }
 
+            if (s.Version < 2)
+            {
+                // v1 → v2: heroes arrive. Old generic hero shards become recruit tickets (1:1),
+                // plus the new-game starter tickets so existing players can try recruiting.
+                s.RecruitTickets += s.HeroShards + data.Gacha.StartTickets;
+                s.HeroShards = 0;
+                if (s.GachaSeed == 0) s.GachaSeed = SeedFrom(now);
+            }
+
             EnsureBuildings(s);
+            EnsureStarterHero(s, data);
+            // Drop heroes removed from the table so a data change can't crash an old save.
+            s.Heroes.RemoveAll(h => !data.HasHero(h.Id));
+            if (!string.IsNullOrEmpty(s.ManagerHero) && !data.HasHero(s.ManagerHero)) s.ManagerHero = null;
+            if (!string.IsNullOrEmpty(s.ScoutHero) && !data.HasHero(s.ScoutHero)) s.ScoutHero = null;
             s.Version = GameSave.CurrentVersion;
             return s;
+        }
+
+        private static void EnsureStarterHero(GameSave s, GameData data)
+        {
+            var starter = data.StarterHero;
+            if (!s.Heroes.Exists(h => h.Id == starter.Id))
+                s.Heroes.Insert(0, new HeroSave { Id = starter.Id, Stars = 1, Shards = 0 });
+            if (string.IsNullOrEmpty(s.LeaderHero) || !s.Heroes.Exists(h => h.Id == s.LeaderHero)) s.LeaderHero = starter.Id;
+        }
+
+        private static int SeedFrom(double now)
+        {
+            unchecked
+            {
+                long t = (long)(now * 1000);
+                int seed = (int)(t ^ (t >> 32)) & 0x7FFFFFFF;
+                return seed == 0 ? 1 : seed;
+            }
         }
 
         private static void EnsureBuildings(GameSave s)

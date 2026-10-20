@@ -148,30 +148,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cfbe18155c4a870489213c343228e189, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _config:
-    HqMaxHp: 2500
-    HeroMaxHp: 300
-    HeroMoveSpeed: 5.5
-    HeroRange: 7.5
-    HeroFireInterval: 0.25
-    HeroDamage: 14
-    HeroCritChance: 0.15
-    HeroCritMultiplier: 2
-    HeroRegenPerSecond: 8
-    HeroRespawnSeconds: 5
-    SkillCooldown: 12
-    SkillRadius: 3.5
-    SkillDamage: 120
-    SkillBurnDps: 25
-    SkillBurnDuration: 3
-    TowerRange: 8.5
-    TowerFireInterval: 0.16
-    TowerDamage: 7
-    TowerCritChance: 0.05
-    ZombieAggroRange: 2.8
-    ZombiePrewarm: 300
-    StressTestCount: 200
-    ShowFlowFieldGizmos: 0
+  _zombiePrewarm: 300
+  _stressTestCount: 200
+  _showFlowFieldGizmos: 0
 --- !u!4 &1733962663
 Transform:
   m_ObjectHideFlags: 0

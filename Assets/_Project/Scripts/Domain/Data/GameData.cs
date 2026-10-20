@@ -68,6 +68,7 @@ namespace ZombieSLG.Domain
         public double FoodBase, FoodPerKill, FuelBase, FuelPerKill, MaterialsBase, MaterialsPerKill;
         public double DefeatFactor;
         public float Star3Hp, Star2Hp;
+        public int TicketsPerStar;
         public NightRules Night;
 
         /// <summary>Stars by remaining base HP. 0 on defeat.</summary>
@@ -79,14 +80,15 @@ namespace ZombieSLG.Domain
             return 1;
         }
 
-        public NightReward Calculate(int night, bool victory, int kills, float hqHpRatio)
+        /// <param name="resourceBonus">Scout hero bonus (0.1 = +10% resources).</param>
+        public NightReward Calculate(int night, bool victory, int kills, float hqHpRatio, double resourceBonus = 0)
         {
             if (kills < 0) kills = 0;
-            double mult = Night.RewardMultiplier(night) * (victory ? 1.0 : DefeatFactor);
+            double mult = Night.RewardMultiplier(night) * (victory ? 1.0 : DefeatFactor) * (1 + Math.Max(0, resourceBonus));
             int food = (int)Math.Round((FoodBase + kills * FoodPerKill) * mult);
             int fuel = (int)Math.Round((FuelBase + kills * FuelPerKill) * mult);
             int materials = (int)Math.Round((MaterialsBase + kills * MaterialsPerKill) * mult);
-            return new NightReward(food, fuel, materials, Stars(victory, hqHpRatio));
+            return new NightReward(food, fuel, materials, Stars(victory, hqHpRatio) * TicketsPerStar);
         }
     }
 
@@ -111,6 +113,9 @@ namespace ZombieSLG.Domain
     {
         private readonly Dictionary<ZombieType, ZombieStats> _zombies = new Dictionary<ZombieType, ZombieStats>();
         private readonly Dictionary<BuildingType, BuildingDef> _buildings = new Dictionary<BuildingType, BuildingDef>();
+        private readonly Dictionary<string, HeroDef> _heroes = new Dictionary<string, HeroDef>(StringComparer.Ordinal);
+        private readonly List<HeroDef> _heroList = new List<HeroDef>();
+        private readonly List<HeroDef>[] _byRarity = { new List<HeroDef>(), new List<HeroDef>(), new List<HeroDef>(), new List<HeroDef>() };
 
         public BalanceTable Balance { get; } = new BalanceTable();
         public EconomyRules Economy { get; } = new EconomyRules();
@@ -118,6 +123,21 @@ namespace ZombieSLG.Domain
         public RewardRules Rewards { get; } = new RewardRules();
         public DefenseRules Defense { get; } = new DefenseRules();
         public WaveSettings Wave { get; } = new WaveSettings();
+        public HeroRules HeroRules { get; } = new HeroRules();
+        public GachaRules Gacha { get; } = new GachaRules();
+        public HeroDef StarterHero { get; internal set; }
+
+        public IReadOnlyList<HeroDef> Heroes => _heroList;
+        public bool HasHero(string id) => id != null && _heroes.ContainsKey(id);
+        public HeroDef Hero(string id) => _heroes[id];
+        public IReadOnlyList<HeroDef> HeroesOfRarity(HeroRarity r) => _byRarity[(int)r];
+
+        internal void AddHero(HeroDef h)
+        {
+            _heroes[h.Id] = h;
+            _heroList.Add(h);
+            _byRarity[(int)h.Rarity].Add(h);
+        }
 
         public ZombieStats Zombie(ZombieType type) => _zombies[type];
         public BuildingDef Building(BuildingType type) => _buildings[type];
@@ -200,6 +220,7 @@ namespace ZombieSLG.Domain
             rw.DefeatFactor = b.D("reward.defeat_factor", 0, 1);
             rw.Star3Hp = b.F("reward.star3_hp", 0, 1);
             rw.Star2Hp = b.F("reward.star2_hp", 0, 1);
+            rw.TicketsPerStar = b.I("reward.tickets_per_star", 0);
             if (rw.Star2Hp > rw.Star3Hp) errors.Add($"{GameTables.BalanceFile}: reward.star2_hp는 reward.star3_hp보다 클 수 없습니다");
 
             var d = data.Defense;
@@ -268,15 +289,86 @@ namespace ZombieSLG.Domain
             foreach (BuildingType t in Enum.GetValues(typeof(BuildingType)))
                 if (!data.HasBuilding(t)) errors.Add($"{GameTables.BuildingsFile}: '{t}' 행이 없습니다");
 
+            BuildHeroes(tables, data, b, errors);
+
             return errors.Count == before ? data : null;
+        }
+
+        private static void BuildHeroes(GameTables tables, GameData data, Reader b, List<string> errors)
+        {
+            const string file = GameTables.HeroesFile;
+
+            var hr = data.HeroRules;
+            hr.StarStatBonus = b.F("hero.star_stat_bonus", 0);
+            int maxStars = b.I("hero.max_stars", 1);
+            if (maxStars > 10) { errors.Add($"{GameTables.BalanceFile}: hero.max_stars는 10 이하여야 합니다"); maxStars = 10; }
+            var costs = new List<int> { 0, 0 };
+            for (int star = 2; star <= maxStars; star++) costs.Add(b.I("hero.star_cost_" + star, 1));
+            hr.StarCosts = costs.ToArray();
+            hr.DupShards[(int)HeroRarity.Common] = b.I("hero.dup_shards_common", 0);
+            hr.DupShards[(int)HeroRarity.Rare] = b.I("hero.dup_shards_rare", 0);
+            hr.DupShards[(int)HeroRarity.Epic] = b.I("hero.dup_shards_epic", 0);
+            hr.DupShards[(int)HeroRarity.Legendary] = b.I("hero.dup_shards_legendary", 0);
+
+            var g = data.Gacha;
+            g.RarityRates[(int)HeroRarity.Common] = b.D("gacha.rate_common", 0, 1);
+            g.RarityRates[(int)HeroRarity.Rare] = b.D("gacha.rate_rare", 0, 1);
+            g.RarityRates[(int)HeroRarity.Epic] = b.D("gacha.rate_epic", 0, 1);
+            g.RarityRates[(int)HeroRarity.Legendary] = b.D("gacha.rate_legendary", 0, 1);
+            g.PityLegendary = b.I("gacha.pity_legendary", 1);
+            g.TenPullGuaranteeRare = b.I("gacha.ten_pull_guarantee_rare", 0) != 0;
+            g.StartTickets = b.I("gacha.start_tickets", 0);
+            double sum = 0;
+            foreach (var r in g.RarityRates) sum += r;
+            if (Math.Abs(sum - 1) > 1e-6) errors.Add($"{GameTables.BalanceFile}: gacha.rate_* 합계가 {sum:0.####}입니다. 1이어야 합니다");
+
+            int order = 0;
+            foreach (var r in tables.Heroes)
+            {
+                if (string.IsNullOrEmpty(r.Id)) { errors.Add($"{file}: id가 빈 행이 있습니다"); continue; }
+                if (data.HasHero(r.Id)) { errors.Add($"{file}: id '{r.Id}'가 중복됩니다"); continue; }
+                if (!Enum.TryParse(r.Rarity, true, out HeroRarity rarity) || !Enum.IsDefined(typeof(HeroRarity), rarity))
+                {
+                    errors.Add($"{file}: '{r.Id}'의 rarity '{r.Rarity}'를 알 수 없습니다 (Common/Rare/Epic/Legendary)");
+                    continue;
+                }
+                if (!Enum.TryParse(r.Role, true, out HeroRole role) || !Enum.IsDefined(typeof(HeroRole), role))
+                {
+                    errors.Add($"{file}: '{r.Id}'의 role '{r.Role}'를 알 수 없습니다 (Combat/Economy/Explore)");
+                    continue;
+                }
+                if (role == HeroRole.Combat && (r.Hp <= 0 || r.Damage <= 0 || r.FireInterval <= 0 || r.Range <= 0 || r.MoveSpeed <= 0 || r.SkillPower <= 0))
+                    errors.Add($"{file}: 전투 영웅 '{r.Id}'는 hp·damage·fire_interval·range·move_speed·skill_power가 0보다 커야 합니다");
+                if (role == HeroRole.Economy && r.EconBonus <= 0) errors.Add($"{file}: 내정 영웅 '{r.Id}'의 econ_bonus가 0입니다");
+                if (role == HeroRole.Explore && r.ScoutBonus <= 0) errors.Add($"{file}: 정찰 영웅 '{r.Id}'의 scout_bonus가 0입니다");
+                if (r.Starter && role != HeroRole.Combat) errors.Add($"{file}: 시작 영웅 '{r.Id}'는 Combat 역할이어야 합니다");
+
+                var def = new HeroDef
+                {
+                    Id = r.Id, Name = string.IsNullOrEmpty(r.Name) ? r.Id : r.Name, Rarity = rarity, Role = role,
+                    Hp = r.Hp, Damage = r.Damage, FireInterval = r.FireInterval, Range = r.Range, MoveSpeed = r.MoveSpeed,
+                    CritChance = r.CritChance, SkillPower = r.SkillPower, EconBonus = r.EconBonus, ScoutBonus = r.ScoutBonus,
+                    ColorHex = r.Color, Starter = r.Starter, Description = r.Description, Order = order++,
+                };
+                data.AddHero(def);
+                if (r.Starter)
+                {
+                    if (data.StarterHero != null) errors.Add($"{file}: starter=1 영웅은 하나여야 합니다 ('{data.StarterHero.Id}', '{r.Id}')");
+                    else data.StarterHero = def;
+                }
+            }
+
+            if (data.StarterHero == null) errors.Add($"{file}: starter=1 인 영웅이 없습니다");
+            for (int i = 0; i < 4; i++)
+                if (g.RarityRates[i] > 0 && data.HeroesOfRarity((HeroRarity)i).Count == 0)
+                    errors.Add($"{file}: {(HeroRarity)i} 등급 확률이 0보다 큰데 해당 영웅이 없습니다");
         }
 
         /// <summary>balance.csv keys consumed outside the domain (BattleConfig). Listed so validation covers them.</summary>
         public static readonly string[] PresentationKeys =
         {
             "zombie.aggro_range", "hq.max_hp",
-            "hero.max_hp", "hero.move_speed", "hero.range", "hero.fire_interval", "hero.damage",
-            "hero.crit_chance", "hero.crit_multiplier", "hero.regen_per_second", "hero.respawn_seconds",
+            "hero.crit_multiplier", "hero.regen_per_second", "hero.respawn_seconds",
             "skill.firebomb.cooldown", "skill.firebomb.radius", "skill.firebomb.damage", "skill.firebomb.edge_factor",
             "skill.firebomb.burn_dps", "skill.firebomb.burn_duration",
             "tower.range", "tower.fire_interval", "tower.damage", "tower.crit_chance", "tower.crit_multiplier",
