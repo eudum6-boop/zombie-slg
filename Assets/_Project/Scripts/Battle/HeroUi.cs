@@ -378,7 +378,7 @@ namespace ZombieSLG.Battle
 
         // ------------------------------------------------------------------ build helpers
 
-        private static (GameObject screen, RectTransform box) Modal(RectTransform root, string name, string title)
+        internal static (GameObject screen, RectTransform box) Modal(RectTransform root, string name, string title)
         {
             var dim = UiKit.Image(name, root, new Color(0f, 0f, 0f, 0.7f), raycast: true);
             UiKit.Stretch(dim.rectTransform);

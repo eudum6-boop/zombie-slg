@@ -165,10 +165,8 @@ namespace ZombieSLG.Battle
         public void Tick(float dt, bool simulate)
         {
             var map = _ctx.Map;
-            var hero = _ctx.Hero;
             var hq = _ctx.Hq;
-            bool heroAlive = hero != null && hero.IsAlive;
-            Vector3 heroPos = heroAlive ? hero.Position : Vector3.zero;
+            var defenders = _ctx.Defenders;
             float aggro = _ctx.Config.ZombieAggroRange;
 
             for (int i = 0; i < _active.Count; i++)
@@ -199,28 +197,38 @@ namespace ZombieSLG.Battle
                 Vector3 facing = z.Vel;
                 float reach = z.Stats.Radius + 0.35f;
 
-                Vector3 toHero = heroPos - z.Pos;
-                toHero.y = 0f;
-                float heroDist = toHero.magnitude;
-
-                if (heroAlive && heroDist < aggro)
+                // Nearest living defender (hero or gate squad) inside aggro range, measured to its body edge.
+                IDefender foe = null;
+                Vector3 toFoe = Vector3.zero;
+                float foeGap = aggro;
+                for (int d = 0; d < defenders.Count; d++)
                 {
-                    if (heroDist <= reach + 0.25f)
+                    var def = defenders[d];
+                    if (!def.IsAlive) continue;
+                    Vector3 to = def.Position - z.Pos;
+                    to.y = 0f;
+                    float gap = to.magnitude - def.HitRadius;
+                    if (gap < foeGap) { foeGap = gap; foe = def; toFoe = to; }
+                }
+
+                if (foe != null)
+                {
+                    if (foeGap <= reach - 0.1f)
                     {
                         desired = Vector3.zero;
                         attacking = true;
-                        facing = toHero;
+                        facing = toFoe;
                         z.AttackTimer -= dt;
                         if (z.AttackTimer <= 0f)
                         {
                             z.AttackTimer = z.Stats.AttackInterval;
                             z.LungeTimer = 0.18f;
-                            hero.TakeDamage(z.Stats.AttackDamage);
+                            foe.TakeDamage(z.Stats.AttackDamage);
                         }
                     }
                     else
                     {
-                        desired = toHero / Mathf.Max(heroDist, 0.001f);
+                        desired = toFoe / Mathf.Max(toFoe.magnitude, 0.001f);
                     }
                 }
                 else if (map.DistanceToHq(z.Pos) <= reach)

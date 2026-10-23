@@ -124,6 +124,37 @@ namespace ZombieSLG.Tests
         }
 
         [Test]
+        public void TroopAndResearchProblemsAreReported()
+        {
+            var errors = new List<string>();
+            var tables = TestData.Tables(errors);
+            tables.Troops.RemoveAll(t => t.Id == "Vehicle");
+            tables.Research.Find(r => r.Id == "eco_salvage").Requires = "eco_magic";
+            tables.Research.Find(r => r.Id == "mil_drill").Effect = "laser_damage";
+            tables.Research.Find(r => r.Id == "def_tactics").Branch = "Navy";
+
+            var e = new List<string>();
+            Assert.IsNull(GameDataBuilder.Build(tables, e));
+            Assert.IsTrue(e.Any(m => m.Contains("Vehicle")), "missing troop");
+            Assert.IsTrue(e.Any(m => m.Contains("eco_magic")), "unknown prerequisite");
+            Assert.IsTrue(e.Any(m => m.Contains("laser_damage")), "unknown effect");
+            Assert.IsTrue(e.Any(m => m.Contains("Navy")), "unknown branch");
+        }
+
+        [Test]
+        public void ResearchCycleIsReported()
+        {
+            var errors = new List<string>();
+            var tables = TestData.Tables(errors);
+            tables.Research.Find(r => r.Id == "eco_farming").Requires = "eco_salvage";
+            tables.Research.Find(r => r.Id == "eco_farming").Tier = 2;
+
+            var e = new List<string>();
+            Assert.IsNull(GameDataBuilder.Build(tables, e));
+            Assert.IsTrue(e.Any(m => m.Contains("순환")), string.Join("\n", e));
+        }
+
+        [Test]
         public void OutOfRangeAndUnsortedValuesAreReported()
         {
             var errors = new List<string>();

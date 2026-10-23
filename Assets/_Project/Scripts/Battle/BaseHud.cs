@@ -51,6 +51,8 @@ namespace ZombieSLG.Battle
         private Text _workerText;
         private Button _workerMinus;
         private Button _workerPlus;
+        private Button _actionButton;
+        private Text _actionLabel;
         private Button _upgradeButton;
         private Text _upgradeLabel;
         private Text _upgradeReason;
@@ -86,6 +88,7 @@ namespace ZombieSLG.Battle
 
         private readonly Action<int> _onUpgrade;
         private readonly Action<int, int> _onWorkers;
+        private readonly Action<int> _onAction;
         private int _selected = -1;
 
         public bool Visible => _canvas.gameObject.activeSelf;
@@ -93,12 +96,13 @@ namespace ZombieSLG.Battle
 
         public BaseHud(BattleContext ctx, BaseView view, Transform parent,
             Action onNight, Action<int> onUpgrade, Action<int, int> onWorkers, Action onClosePanel,
-            Action onHeroes, Action onRecruit)
+            Action onHeroes, Action onRecruit, Action<int> onAction)
         {
             _ctx = ctx;
             _view = view;
             _onUpgrade = onUpgrade;
             _onWorkers = onWorkers;
+            _onAction = onAction;
 
             _canvas = UiKit.CreateCanvas("BaseHUD", parent, 5);
             _root = (RectTransform)_canvas.transform;
@@ -196,6 +200,11 @@ namespace ZombieSLG.Battle
             UiKit.Place((RectTransform)_workerMinus.transform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-130f, 0f), new Vector2(110f, 86f));
             _workerPlus = UiKit.Button("Plus", wr, "+", 54, new Color(0.2f, 0.45f, 0.25f), () => Workers(1), out _);
             UiKit.Place((RectTransform)_workerPlus.transform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), Vector2.zero, new Vector2(110f, 86f));
+
+            // Feature button for Barracks / Clinic / Research lab (same row as workers; those never produce).
+            _actionButton = UiKit.Button("Action", p, "", 40, new Color(0.22f, 0.42f, 0.55f),
+                () => { if (_selected >= 0) _onAction?.Invoke(_selected); }, out _actionLabel);
+            UiKit.Anchor((RectTransform)_actionButton.transform, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(44f, -480f), new Vector2(-44f, -385f));
 
             _panelCost = UiKit.Text("Cost", p, "", 34, Color.white, TextAnchor.MiddleLeft);
             UiKit.Anchor(_panelCost.rectTransform, Vector2.zero, new Vector2(1f, 0f), new Vector2(44f, 200f), new Vector2(-44f, 260f));
@@ -341,7 +350,8 @@ namespace ZombieSLG.Battle
             string morale = s.IsStarving
                 ? $"<color=#ff6a5a>굶주림! 사기 {s.Morale:0}%</color>"
                 : $"사기 {s.Morale:0}%";
-            _peopleText.text = $"생존자 {s.Survivors}/{s.SurvivorCapacity} (대기 {s.IdleSurvivors})   {morale}";
+            string troops = s.BarracksLevel > 0 ? $"   병력 {s.TotalHealthy}/{s.TroopCapacity}" : $"   병력 {s.TotalHealthy}";
+            _peopleText.text = $"생존자 {s.Survivors}/{s.SurvivorCapacity} (대기 {s.IdleSurvivors}){troops}   {morale}";
 
             for (int i = 0; i < 3; i++)
             {
@@ -391,13 +401,18 @@ namespace ZombieSLG.Battle
                 _workerPlus.interactable = b.Workers < slots && s.IdleSurvivors > 0;
             }
 
+            string action = ActionName(b.Type);
+            bool hasAction = action != null && b.Level > 0;
+            _actionButton.gameObject.SetActive(hasAction);
+            if (hasAction) _actionLabel.text = action + ActionBadge(s, b.Type, now);
+
             if (b.Upgrading)
             {
                 _progressRow.SetActive(true);
                 _panelCost.gameObject.SetActive(false);
                 _upgradeButton.gameObject.SetActive(false);
                 _upgradeReason.gameObject.SetActive(false);
-                double total = def.BuildSecondsFor(b.Level + 1);
+                double total = s.BuildSecondsFor(b.Type, b.Level + 1);
                 double left = s.RemainingSeconds(b, now);
                 float progress = total <= 0 ? 1f : Mathf.Clamp01(1f - (float)(left / total));
                 _progressFill.rectTransform.localScale = new Vector3(progress, 1f, 1f);
@@ -421,7 +436,7 @@ namespace ZombieSLG.Battle
             }
 
             var cost = def.CostFor(b.Level + 1);
-            _panelCost.text = CostText(s, cost) + $"    <color=#9aa4b0>시간</color> {UiKit.Duration(def.BuildSecondsFor(b.Level + 1))}";
+            _panelCost.text = CostText(s, cost) + $"    <color=#9aa4b0>시간</color> {UiKit.Duration(s.BuildSecondsFor(b.Type, b.Level + 1))}";
             _upgradeLabel.text = b.Level == 0 ? "건설" : "업그레이드";
             _upgradeButton.interactable = block == UpgradeBlock.None;
             _upgradeReason.text = ReasonText(block, def, b);
@@ -439,7 +454,11 @@ namespace ZombieSLG.Battle
                 case BuildingType.Shelter:
                     return $"수용 인원 {data.Economy.ShelterCapacity(level)}명";
                 case BuildingType.Clinic:
-                    return $"영웅 회복 x{defense.HeroRegenMultiplier(level):0.0#}  ·  부활 대기 x{defense.HeroRespawnMultiplier(level):0.0#}";
+                    return $"영웅 회복 x{defense.HeroRegenMultiplier(level):0.0#}  ·  치료 시간 x{data.Troops.HealTimeMultiplier(level):0.0#}";
+                case BuildingType.Barracks:
+                    return $"병력 수용 {data.Troops.Capacity(level)}명";
+                case BuildingType.ResearchLab:
+                    return $"연구 단계 {level}까지";
                 case BuildingType.GunTower:
                     return $"공격력 x{defense.TowerDamageMultiplier(level):0.0#}  ·  사거리 +{defense.TowerRangeBonus(level):0.0}  ·  연사 x{1f / defense.TowerIntervalMultiplier(level):0.0#}";
                 default:
@@ -448,6 +467,50 @@ namespace ZombieSLG.Battle
                     if (preview) return $"최대 {res} {def.RatePerHour(level):N0}/시간  ·  인력 {def.WorkerSlots(level)}명";
                     double eff = s.Staffing(b) * s.MoraleMultiplier;
                     return $"{res} {s.EffectiveRatePerHour(b):N0}/시간   <color=#9aa4b0>(효율 {eff * 100:0}%)</color>";
+            }
+        }
+
+        /// <summary>Panel button label for buildings with their own screen, or null.</summary>
+        public static string ActionName(BuildingType type)
+        {
+            switch (type)
+            {
+                case BuildingType.Barracks: return "병력 훈련";
+                case BuildingType.Clinic: return "부상병 치료";
+                case BuildingType.ResearchLab: return "연구";
+                default: return null;
+            }
+        }
+
+        private static string ActionBadge(BaseState s, BuildingType type, double now)
+        {
+            switch (type)
+            {
+                case BuildingType.Barracks:
+                    return s.TrainingQueue.Count > 0 ? $"  <size=30>({UiKit.Duration(s.QueueRemaining(s.TrainingQueue, now))})</size>" : "";
+                case BuildingType.Clinic:
+                    int w = 0;
+                    foreach (TroopType t in Enum.GetValues(typeof(TroopType))) w += s.Wounded(t);
+                    if (s.HealingQueue.Count > 0) return $"  <size=30>({UiKit.Duration(s.QueueRemaining(s.HealingQueue, now))})</size>";
+                    return w > 0 ? $"  <size=30><color=#ffb080>부상 {w}</color></size>" : "";
+                case BuildingType.ResearchLab:
+                    return s.ActiveResearch != null ? $"  <size=30>({UiKit.Duration(s.ResearchRemaining(now))})</size>" : "";
+                default: return "";
+            }
+        }
+
+        /// <summary>Short world-label text for a running queue at this building, or null.</summary>
+        private static string QueueLabel(BaseState s, BuildingType type, double now)
+        {
+            switch (type)
+            {
+                case BuildingType.Barracks:
+                    return s.TrainingQueue.Count > 0 ? "훈련 " + UiKit.Duration(s.QueueRemaining(s.TrainingQueue, now)) : null;
+                case BuildingType.Clinic:
+                    return s.HealingQueue.Count > 0 ? "치료 " + UiKit.Duration(s.QueueRemaining(s.HealingQueue, now)) : null;
+                case BuildingType.ResearchLab:
+                    return s.ActiveResearch != null ? "연구 " + UiKit.Duration(s.ResearchRemaining(now)) : null;
+                default: return null;
             }
         }
 
@@ -499,8 +562,7 @@ namespace ZombieSLG.Battle
 
                 if (b.Upgrading)
                 {
-                    var def = _ctx.Data.Building(b.Type);
-                    double total = def.BuildSecondsFor(b.Level + 1);
+                    double total = s.BuildSecondsFor(b.Type, b.Level + 1);
                     double left = s.RemainingSeconds(b, now);
                     label.Text.text = UiKit.Duration(left);
                     label.Text.color = new Color(1f, 0.85f, 0.4f);
@@ -517,6 +579,12 @@ namespace ZombieSLG.Battle
                         label.Text.text = canUp ? "건설 가능" : "빈 부지";
                         label.Text.color = canUp ? UiKit.Good : UiKit.Muted;
                         label.Rect.sizeDelta = new Vector2(170f, 50f);
+                    }
+                    else if (QueueLabel(s, b.Type, now) is string q)
+                    {
+                        label.Text.text = q;
+                        label.Text.color = new Color(0.6f, 0.9f, 1f);
+                        label.Rect.sizeDelta = new Vector2(200f, 50f);
                     }
                     else
                     {

@@ -126,6 +126,25 @@ namespace ZombieSLG.Domain
         public HeroRules HeroRules { get; } = new HeroRules();
         public GachaRules Gacha { get; } = new GachaRules();
         public HeroDef StarterHero { get; internal set; }
+        public TroopRules Troops { get; } = new TroopRules();
+        public ResearchRules Research { get; } = new ResearchRules();
+
+        private readonly TroopDef[] _troops = new TroopDef[TroopRules.TypeCount];
+        private readonly Dictionary<string, ResearchDef> _research = new Dictionary<string, ResearchDef>(StringComparer.Ordinal);
+        private readonly List<ResearchDef> _researchList = new List<ResearchDef>();
+
+        public TroopDef Troop(TroopType t) => _troops[(int)t];
+        public IReadOnlyList<ResearchDef> ResearchNodes => _researchList;
+        public bool HasResearch(string id) => id != null && _research.ContainsKey(id);
+        public ResearchDef ResearchNode(string id) => _research[id];
+
+        internal bool HasTroop(TroopType t) => _troops[(int)t] != null;
+        internal void SetTroop(TroopDef d) => _troops[(int)d.Type] = d;
+        internal void AddResearch(ResearchDef d)
+        {
+            _research[d.Id] = d;
+            _researchList.Add(d);
+        }
 
         public IReadOnlyList<HeroDef> Heroes => _heroList;
         public bool HasHero(string id) => id != null && _heroes.ContainsKey(id);
@@ -290,8 +309,95 @@ namespace ZombieSLG.Domain
                 if (!data.HasBuilding(t)) errors.Add($"{GameTables.BuildingsFile}: '{t}' 행이 없습니다");
 
             BuildHeroes(tables, data, b, errors);
+            BuildMilitary(tables, data, b, errors);
+            BuildResearch(tables, data, b, errors);
 
             return errors.Count == before ? data : null;
+        }
+
+        private static void BuildMilitary(GameTables tables, GameData data, Reader b, List<string> errors)
+        {
+            const string file = GameTables.TroopsFile;
+            var tr = data.Troops;
+            tr.CapacityBase = b.I("troops.capacity_base", 0);
+            tr.CapacityPerLevel = b.I("troops.capacity_per_level", 0);
+            tr.WoundedRatio = b.D("troops.wounded_ratio", 0, 1);
+            tr.HealSpeedPerClinic = b.D("troops.heal_speed_per_clinic", 0, 1);
+            tr.HealSpeedMin = b.D("troops.heal_speed_min", 0.01, 1);
+            tr.StartInfantry = b.I("troops.start_infantry", 0);
+
+            foreach (var r in tables.Troops)
+            {
+                if (!Enum.TryParse(r.Id, true, out TroopType type) || !Enum.IsDefined(typeof(TroopType), type))
+                {
+                    errors.Add($"{file}: 알 수 없는 병종 id '{r.Id}' (가능: {string.Join(", ", Enum.GetNames(typeof(TroopType)))})");
+                    continue;
+                }
+                if (data.HasTroop(type)) { errors.Add($"{file}: id '{r.Id}'가 중복됩니다"); continue; }
+                data.SetTroop(new TroopDef
+                {
+                    Type = type,
+                    Name = string.IsNullOrEmpty(r.Name) ? r.Id : r.Name,
+                    Description = r.Description,
+                    Hp = r.Hp, Damage = r.Damage, FireInterval = r.FireInterval, Range = r.Range,
+                    TrainSeconds = r.TrainSeconds, TrainCost = new Cost(r.CostFood, r.CostFuel, r.CostMaterials),
+                    HealSeconds = r.HealSeconds, HealCost = new Cost(r.HealFood, r.HealFuel, r.HealMaterials),
+                    VsZombie = new[] { r.VsWalker, r.VsRunner, r.VsBrute },
+                });
+            }
+            foreach (TroopType t in Enum.GetValues(typeof(TroopType)))
+                if (!data.HasTroop(t)) errors.Add($"{file}: '{t}' 행이 없습니다");
+        }
+
+        private static void BuildResearch(GameTables tables, GameData data, Reader b, List<string> errors)
+        {
+            const string file = GameTables.ResearchFile;
+            data.Research.MaxReduction = b.D("research.max_reduction", 0, 0.95);
+
+            int order = 0;
+            foreach (var r in tables.Research)
+            {
+                if (string.IsNullOrEmpty(r.Id)) { errors.Add($"{file}: id가 빈 행이 있습니다"); continue; }
+                if (data.HasResearch(r.Id)) { errors.Add($"{file}: id '{r.Id}'가 중복됩니다"); continue; }
+                if (!Enum.TryParse(r.Branch, true, out ResearchBranch branch) || !Enum.IsDefined(typeof(ResearchBranch), branch))
+                {
+                    errors.Add($"{file}: '{r.Id}'의 branch '{r.Branch}'를 알 수 없습니다 (Economy/Military/Defense)");
+                    continue;
+                }
+                var effect = ResearchDef.ParseEffect(r.Effect);
+                if (effect == null)
+                {
+                    errors.Add($"{file}: '{r.Id}'의 effect '{r.Effect}'를 알 수 없습니다");
+                    continue;
+                }
+                data.AddResearch(new ResearchDef
+                {
+                    Id = r.Id, Name = string.IsNullOrEmpty(r.Name) ? r.Id : r.Name, Description = r.Description,
+                    Branch = branch, Tier = r.Tier, Requires = string.IsNullOrEmpty(r.Requires) ? null : r.Requires,
+                    MaxLevel = r.MaxLevel, BaseCost = new Cost(r.CostFood, r.CostFuel, r.CostMaterials), CostGrowth = r.CostGrowth,
+                    BaseSeconds = r.Seconds, TimeGrowth = r.TimeGrowth, Effect = effect.Value, PerLevel = r.PerLevel, Order = order++,
+                });
+            }
+
+            foreach (var d in data.ResearchNodes)
+            {
+                if (d.Requires == null) continue;
+                if (!data.HasResearch(d.Requires)) { errors.Add($"{file}: '{d.Id}'의 선행 연구 '{d.Requires}'가 없습니다"); continue; }
+                if (d.Requires == d.Id) { errors.Add($"{file}: '{d.Id}'가 자기 자신을 선행으로 갖습니다"); continue; }
+                var pre = data.ResearchNode(d.Requires);
+                if (pre.Tier > d.Tier) errors.Add($"{file}: '{d.Id}'(단계 {d.Tier})의 선행 '{pre.Id}'가 더 높은 단계({pre.Tier})입니다");
+            }
+            // Cycle check: follow requires chains.
+            foreach (var d in data.ResearchNodes)
+            {
+                var seen = new HashSet<string>();
+                var cur = d;
+                while (cur?.Requires != null && data.HasResearch(cur.Requires))
+                {
+                    if (!seen.Add(cur.Id)) { errors.Add($"{file}: '{d.Id}'의 선행 연구가 순환합니다"); break; }
+                    cur = data.ResearchNode(cur.Requires);
+                }
+            }
         }
 
         private static void BuildHeroes(GameTables tables, GameData data, Reader b, List<string> errors)

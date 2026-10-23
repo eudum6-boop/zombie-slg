@@ -6,7 +6,7 @@ namespace ZombieSLG.Battle
     /// <summary>
     /// The single M0 hero: tap-to-move, auto-fires at the nearest zombie, respawns at the HQ when downed.
     /// </summary>
-    public sealed class HeroController : MonoBehaviour
+    public sealed class HeroController : MonoBehaviour, IDefender
     {
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
 
@@ -33,8 +33,13 @@ namespace ZombieSLG.Battle
         public float RegenMultiplier { get; set; } = 1f;
         public float RespawnMultiplier { get; set; } = 1f;
 
+        /// <summary>Research multipliers (def_tactics, def_napalm), set before each night.</summary>
+        public float DamageMultiplier { get; set; } = 1f;
+        public float SkillMultiplier { get; set; } = 1f;
+
         public float MaxHp => _stats.MaxHp;
-        public float SkillPower => _stats.SkillPower;
+        public float SkillPower => _stats.SkillPower * SkillMultiplier;
+        public float HitRadius => 0.5f;
         public string HeroName { get; private set; } = "";
         private HeroCombatStats _stats = new HeroCombatStats(300f, 13f, 0.25f, 7.5f, 5.5f, 0.1f, 1f);
         private Renderer _bodyRenderer;
@@ -205,7 +210,7 @@ namespace ZombieSLG.Battle
 
         private void Shoot(ZombieAgent target)
         {
-            var hit = CombatRules.RollHit(_stats.Damage, _stats.CritChance, _cfg.HeroCritMultiplier, _ctx.Roll());
+            var hit = CombatRules.RollHit(_stats.Damage * DamageMultiplier, _stats.CritChance, _cfg.HeroCritMultiplier, _ctx.Roll());
             Vector3 from = _muzzle.position;
             Vector3 to = target.AimPoint + Random.insideUnitSphere * 0.1f;
 

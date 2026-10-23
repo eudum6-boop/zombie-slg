@@ -20,6 +20,10 @@ namespace ZombieSLG.Domain
         SurvivorArrived,
         StarvationStarted,
         StarvationEnded,
+        TrainingCompleted,
+        HealCompleted,
+        ResearchStarted,
+        ResearchCompleted,
     }
 
     public readonly struct BaseEvent
@@ -27,12 +31,15 @@ namespace ZombieSLG.Domain
         public readonly BaseEventKind Kind;
         public readonly int BuildingId;
         public readonly int Value;
+        /// <summary>Extra key for events that are not about a building: troop type name or research id.</summary>
+        public readonly string Tag;
 
-        public BaseEvent(BaseEventKind kind, int buildingId, int value)
+        public BaseEvent(BaseEventKind kind, int buildingId, int value, string tag = null)
         {
             Kind = kind;
             BuildingId = buildingId;
             Value = value;
+            Tag = tag;
         }
     }
 
@@ -41,7 +48,7 @@ namespace ZombieSLG.Domain
     /// a single construction queue and night results. Time is injected (seconds) so the same code
     /// handles live play, offline catch-up and, later, server-side validation.
     /// </summary>
-    public sealed class BaseState
+    public sealed partial class BaseState
     {
         private readonly GameSave _s;
         private readonly GameData _data;
@@ -78,7 +85,7 @@ namespace ZombieSLG.Domain
 
         public int LevelOf(int id) => Get(id)?.Level ?? 0;
         public int HqLevel => LevelOf(BasePlots.Headquarters);
-        public int StorageCap => _eco.StorageCap(HqLevel);
+        public int StorageCap => (int)Math.Round(_eco.StorageCap(HqLevel) * (1 + ResearchBonus(ResearchEffect.Storage)));
 
         public int SurvivorCapacity
         {
@@ -140,7 +147,8 @@ namespace ZombieSLG.Domain
         {
             var def = _data.Building(b.Type);
             if (!def.IsProducer) return 0;
-            return def.RatePerHour(b.Level) * Staffing(b) * MoraleMultiplier * (1 + ManagerBonus);
+            return def.RatePerHour(b.Level) * Staffing(b) * MoraleMultiplier
+                   * (1 + ManagerBonus + ResearchMath.ProductionBonus(_s, _data, def.Produces));
         }
 
         public double NetRatePerHour(ResourceType type)
@@ -183,6 +191,10 @@ namespace ZombieSLG.Domain
             return UpgradeBlock.None;
         }
 
+        /// <summary>Build time after research (eco_engineering).</summary>
+        public double BuildSecondsFor(BuildingType type, int targetLevel) =>
+            Math.Round(_data.Building(type).BuildSecondsFor(targetLevel) * (1 - ResearchBonus(ResearchEffect.BuildSpeed)));
+
         public UpgradeBlock StartUpgrade(int id, double now)
         {
             Advance(now);
@@ -192,12 +204,9 @@ namespace ZombieSLG.Domain
             var b = Get(id);
             var def = _data.Building(b.Type);
             int target = b.Level + 1;
-            var cost = def.CostFor(target);
-            _s.Food -= cost.Food;
-            _s.Fuel -= cost.Fuel;
-            _s.Materials -= cost.Materials;
+            Pay(def.CostFor(target));
             b.Upgrading = true;
-            b.UpgradeEnd = now + def.BuildSecondsFor(target);
+            b.UpgradeEnd = now + BuildSecondsFor(b.Type, target);
             Events.Add(new BaseEvent(BaseEventKind.UpgradeStarted, b.Id, target));
             return UpgradeBlock.None;
         }
@@ -222,9 +231,19 @@ namespace ZombieSLG.Domain
             return true;
         }
 
+        private void Pay(Cost cost)
+        {
+            _s.Food -= cost.Food;
+            _s.Fuel -= cost.Fuel;
+            _s.Materials -= cost.Materials;
+        }
+
+        private enum Completion { None, Building, Research, Training, Healing }
+
         /// <summary>
-        /// Advances the simulation to <paramref name="now"/>. Construction completions inside the
-        /// interval split it, so production after an upgrade uses the new level (correct offline catch-up).
+        /// Advances the simulation to <paramref name="now"/>. Every completion inside the interval
+        /// (construction, research, a training or healing batch) splits it, in time order, so
+        /// production after an upgrade or a finished research uses the new values (correct offline catch-up).
         /// </summary>
         public void Advance(double now)
         {
@@ -232,15 +251,29 @@ namespace ZombieSLG.Domain
 
             while (true)
             {
-                BuildingSave next = null;
-                foreach (var b in _s.Buildings)
-                    if (b.Upgrading && b.UpgradeEnd <= now && (next == null || b.UpgradeEnd < next.UpgradeEnd)) next = b;
+                var kind = Completion.None;
+                double at = double.MaxValue;
+                BuildingSave building = null;
 
-                if (next == null) break;
-                AccrueTo(Math.Max(_s.LastTick, next.UpgradeEnd));
-                next.Upgrading = false;
-                next.Level++;
-                Events.Add(new BaseEvent(BaseEventKind.UpgradeCompleted, next.Id, next.Level));
+                foreach (var b in _s.Buildings)
+                    if (b.Upgrading && b.UpgradeEnd <= now && b.UpgradeEnd < at) { at = b.UpgradeEnd; building = b; kind = Completion.Building; }
+                if (_s.ResearchActive != null && _s.ResearchEnd <= now && _s.ResearchEnd < at) { at = _s.ResearchEnd; kind = Completion.Research; }
+                if (_s.Training.Count > 0 && _s.Training[0].End <= now && _s.Training[0].End < at) { at = _s.Training[0].End; kind = Completion.Training; }
+                if (_s.Healing.Count > 0 && _s.Healing[0].End <= now && _s.Healing[0].End < at) { at = _s.Healing[0].End; kind = Completion.Healing; }
+
+                if (kind == Completion.None) break;
+                AccrueTo(Math.Max(_s.LastTick, at));
+                switch (kind)
+                {
+                    case Completion.Building:
+                        building.Upgrading = false;
+                        building.Level++;
+                        Events.Add(new BaseEvent(BaseEventKind.UpgradeCompleted, building.Id, building.Level));
+                        break;
+                    case Completion.Research: CompleteResearch(); break;
+                    case Completion.Training: CompleteTraining(); break;
+                    case Completion.Healing: CompleteHealing(); break;
+                }
             }
 
             AccrueTo(now);
@@ -277,9 +310,13 @@ namespace ZombieSLG.Domain
             _s.LastTick = t;
         }
 
-        /// <summary>Night outcome: rewards bypass the storage cap; a victory advances the night and may bring a survivor.</summary>
-        public void ApplyNightResult(bool victory, NightReward reward, int kills)
+        /// <summary>
+        /// Night outcome: rewards bypass the storage cap; a victory advances the night and may bring a survivor.
+        /// <paramref name="dead"/>/<paramref name="wounded"/> are per <see cref="TroopType"/> (null = no losses).
+        /// </summary>
+        public void ApplyNightResult(bool victory, NightReward reward, int kills, int[] dead = null, int[] wounded = null)
         {
+            ApplyCasualties(dead, wounded);
             _s.Food += reward.Food;
             _s.Fuel += reward.Fuel;
             _s.Materials += reward.Materials;

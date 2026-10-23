@@ -1,0 +1,7 @@
+# 병종. id는 코드의 TroopType(Infantry/Shooter/Vehicle)과 같아야 합니다.
+# train_seconds/heal_seconds는 1명 기준. vs_* 는 좀비 종류별 피해 배율(상성) — 1보다 크면 강함.
+# 밤에는 북문·동문·서문에 나눠 배치되고, 보병 → 차량 → 사수 순서로 피해를 받습니다.
+id,name,hp,damage,fire_interval,range,train_seconds,cost_food,cost_fuel,cost_materials,heal_seconds,heal_food,heal_fuel,heal_materials,vs_walker,vs_runner,vs_brute,description
+Infantry,보병,60,4,0.8,3.5,6,20,0,10,4,8,0,4,1.0,1.5,0.6,방패와 소총으로 성문을 막아선다. 달려드는 러너에 강하다.
+Shooter,사수,30,6,1.0,7,8,15,10,10,4,6,0,4,1.5,0.8,0.8,멀리서 몰려오는 일반 좀비를 쓸어낸다. 맷집은 약하다.
+Vehicle,장갑차,220,30,2.0,6,30,20,60,60,15,10,10,30,0.8,0.7,2.0,중기관총을 단 개조 차량. 브루트를 상대로 압도적이다.

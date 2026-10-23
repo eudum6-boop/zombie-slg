@@ -60,6 +60,14 @@ namespace ZombieSLG.Battle
             public Color Color;
         }
 
+        private sealed class SquadBar
+        {
+            public RectTransform Rect;
+            public Image Fill;
+            public Text Label;
+        }
+
+        private readonly List<SquadBar> _squadBars = new List<SquadBar>();
         private readonly List<GameObject> _battleOnly = new List<GameObject>();
         private readonly List<DamageNumber> _numbers = new List<DamageNumber>();
         private int _numberCursor;
@@ -89,6 +97,7 @@ namespace ZombieSLG.Battle
 
             BuildTopBar();
             BuildHeroBar();
+            BuildSquadBars();
             BuildBottom(onSkill, onStress);
             BuildBanner();
             BuildStartPanel(onStart);
@@ -157,6 +166,46 @@ namespace ZombieSLG.Battle
             Anchor(_heroFill.rectTransform, Vector2.zero, Vector2.one, new Vector2(3f, 3f), new Vector2(-3f, -3f));
             _heroRespawnText = NewText("Respawn", _heroBar, "", 34, new Color(0.6f, 0.9f, 1f), TextAnchor.MiddleCenter);
             Anchor(_heroRespawnText.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-200f, 10f), new Vector2(200f, 60f));
+        }
+
+        private void BuildSquadBars()
+        {
+            foreach (var _ in _ctx.Squads)
+            {
+                var bg = NewImage("SquadBar", _canvasRect, new Color(0f, 0f, 0f, 0.65f));
+                bg.raycastTarget = false;
+                var rt = bg.rectTransform;
+                rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+                rt.sizeDelta = new Vector2(110f, 14f);
+                var fill = NewImage("Fill", rt, new Color(0.55f, 0.85f, 0.4f));
+                fill.raycastTarget = false;
+                fill.rectTransform.pivot = new Vector2(0f, 0.5f);
+                Anchor(fill.rectTransform, Vector2.zero, Vector2.one, new Vector2(2f, 2f), new Vector2(-2f, -2f));
+                var label = NewText("Count", rt, "", 26, new Color(0.85f, 1f, 0.75f), TextAnchor.MiddleCenter);
+                label.raycastTarget = false;
+                Anchor(label.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(-120f, 2f), new Vector2(120f, 36f));
+                _battleOnly.Add(bg.gameObject);
+                _squadBars.Add(new SquadBar { Rect = rt, Fill = fill, Label = label });
+            }
+        }
+
+        private void TickSquadBars(Camera cam)
+        {
+            for (int i = 0; i < _squadBars.Count && i < _ctx.Squads.Count; i++)
+            {
+                var sq = _ctx.Squads[i];
+                var bar = _squadBars[i];
+                bool show = sq.StartTotal > 0;
+                if (bar.Rect.gameObject.activeSelf != show) bar.Rect.gameObject.SetActive(show);
+                if (!show) continue;
+                Vector3 screen = cam.WorldToScreenPoint(sq.Position + new Vector3(0f, 2.4f, 0f));
+                if (RectTransformUtility.ScreenPointToLocalPointInRectangle(_canvasRect, screen, null, out var local))
+                    bar.Rect.anchoredPosition = local;
+                bar.Fill.rectTransform.localScale = new Vector3(Mathf.Clamp01(sq.HealthRatio), 1f, 1f);
+                bool hit = Time.time - sq.LastHitTime < 0.12f;
+                bar.Fill.color = hit ? Color.white : (sq.IsAlive ? new Color(0.55f, 0.85f, 0.4f) : new Color(0.4f, 0.4f, 0.4f));
+                bar.Label.text = sq.IsAlive ? $"{sq.Name} {sq.TotalAlive}" : $"{sq.Name} 붕괴";
+            }
         }
 
         private void BuildBottom(Action onSkill, Action onStress)
@@ -310,6 +359,8 @@ namespace ZombieSLG.Battle
                     n.Color = new Color(1f, 0.55f, 0.15f); n.Scale = crit ? 1.6f : 1.25f; n.Life = 0.9f; break;
                 case DamageStyle.Burn:
                     n.Color = new Color(1f, 0.45f, 0.2f); n.Scale = 0.7f; n.Life = 0.5f; break;
+                case DamageStyle.Troop:
+                    n.Color = crit ? new Color(0.6f, 1f, 0.5f) : new Color(0.8f, 0.9f, 0.75f); n.Scale = crit ? 1.05f : 0.75f; n.Life = 0.5f; break;
                 case DamageStyle.Tower:
                     n.Color = new Color(0.85f, 0.85f, 0.85f); n.Scale = crit ? 1.0f : 0.7f; n.Life = 0.5f; break;
                 default:
@@ -356,6 +407,7 @@ namespace ZombieSLG.Battle
             }
             _heroFill.rectTransform.localScale = new Vector3(hero.IsAlive ? Mathf.Clamp01(hero.Hp / hero.MaxHp) : 0f, 1f, 1f);
             _heroRespawnText.text = hero.IsAlive ? "" : "부활 " + Mathf.CeilToInt(hero.RespawnRemaining);
+            TickSquadBars(cam);
 
             // Skill button state.
             float cd = skill.Cooldown <= 0f ? 0f : skill.CooldownRemaining / skill.Cooldown;

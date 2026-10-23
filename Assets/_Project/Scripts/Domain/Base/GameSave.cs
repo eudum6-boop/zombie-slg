@@ -10,7 +10,7 @@ namespace ZombieSLG.Domain
     [Serializable]
     public sealed class GameSave
     {
-        public const int CurrentVersion = 2;
+        public const int CurrentVersion = 3;
 
         public int Version;
         public double LastTick;
@@ -36,6 +36,38 @@ namespace ZombieSLG.Domain
         public string ManagerHero;
         public string ScoutHero;
         public List<HeroSave> Heroes = new List<HeroSave>();
+
+        // v3: troops & research
+        public List<TroopStock> Troops = new List<TroopStock>();
+        public List<QueueItem> Training = new List<QueueItem>();
+        public List<QueueItem> Healing = new List<QueueItem>();
+        public string ResearchActive;
+        public double ResearchEnd;
+        public List<ResearchSave> Research = new List<ResearchSave>();
+    }
+
+    [Serializable]
+    public sealed class TroopStock
+    {
+        public TroopType Type;
+        public int Healthy;
+        public int Wounded;
+    }
+
+    /// <summary>One batch in the training or healing queue. Batches run one after another.</summary>
+    [Serializable]
+    public sealed class QueueItem
+    {
+        public TroopType Type;
+        public int Count;
+        public double End;
+    }
+
+    [Serializable]
+    public sealed class ResearchSave
+    {
+        public string Id;
+        public int Level;
     }
 
     [Serializable]
@@ -68,6 +100,8 @@ namespace ZombieSLG.Domain
         public const int Clinic = 5;
         public const int TowerA = 6;
         public const int TowerB = 7;
+        public const int Barracks = 8;
+        public const int ResearchLab = 9;
 
         /// <summary>(id, type, starting level, starting workers)</summary>
         public static readonly (int id, BuildingType type, int level, int workers)[] Defaults =
@@ -80,6 +114,8 @@ namespace ZombieSLG.Domain
             (Clinic, BuildingType.Clinic, 0, 0),
             (TowerA, BuildingType.GunTower, 1, 0),
             (TowerB, BuildingType.GunTower, 0, 0),
+            (Barracks, BuildingType.Barracks, 0, 0),
+            (ResearchLab, BuildingType.ResearchLab, 0, 0),
         };
     }
 
@@ -103,6 +139,8 @@ namespace ZombieSLG.Domain
             };
             EnsureBuildings(s);
             EnsureStarterHero(s, data);
+            EnsureTroops(s);
+            Stock(s, TroopType.Infantry).Healthy = data.Troops.StartInfantry;
             return s;
         }
 
@@ -116,6 +154,10 @@ namespace ZombieSLG.Domain
             var economy = data.Economy;
             if (s.Buildings == null) s.Buildings = new List<BuildingSave>();
             if (s.Heroes == null) s.Heroes = new List<HeroSave>();
+            if (s.Troops == null) s.Troops = new List<TroopStock>();
+            if (s.Training == null) s.Training = new List<QueueItem>();
+            if (s.Healing == null) s.Healing = new List<QueueItem>();
+            if (s.Research == null) s.Research = new List<ResearchSave>();
 
             if (s.Version < 1)
             {
@@ -135,8 +177,19 @@ namespace ZombieSLG.Domain
                 if (s.GachaSeed == 0) s.GachaSeed = SeedFrom(now);
             }
 
+            if (s.Version < 3)
+            {
+                // v2 → v3: troops arrive. Existing players get the same starting squad as a new game.
+                EnsureTroops(s);
+                Stock(s, TroopType.Infantry).Healthy += data.Troops.StartInfantry;
+            }
+
             EnsureBuildings(s);
             EnsureStarterHero(s, data);
+            EnsureTroops(s);
+            // Research removed from the table: drop progress (and a running project) instead of crashing.
+            s.Research.RemoveAll(r => !data.HasResearch(r.Id));
+            if (s.ResearchActive != null && !data.HasResearch(s.ResearchActive)) s.ResearchActive = null;
             // Drop heroes removed from the table so a data change can't crash an old save.
             s.Heroes.RemoveAll(h => !data.HasHero(h.Id));
             if (!string.IsNullOrEmpty(s.ManagerHero) && !data.HasHero(s.ManagerHero)) s.ManagerHero = null;
@@ -151,6 +204,22 @@ namespace ZombieSLG.Domain
             if (!s.Heroes.Exists(h => h.Id == starter.Id))
                 s.Heroes.Insert(0, new HeroSave { Id = starter.Id, Stars = 1, Shards = 0 });
             if (string.IsNullOrEmpty(s.LeaderHero) || !s.Heroes.Exists(h => h.Id == s.LeaderHero)) s.LeaderHero = starter.Id;
+        }
+
+        /// <summary>One stock row per troop type, in enum order.</summary>
+        internal static void EnsureTroops(GameSave s)
+        {
+            foreach (TroopType t in Enum.GetValues(typeof(TroopType)))
+                if (!s.Troops.Exists(x => x.Type == t)) s.Troops.Add(new TroopStock { Type = t });
+            s.Troops.Sort((a, b) => a.Type.CompareTo(b.Type));
+        }
+
+        internal static TroopStock Stock(GameSave s, TroopType t)
+        {
+            foreach (var x in s.Troops) if (x.Type == t) return x;
+            var row = new TroopStock { Type = t };
+            s.Troops.Add(row);
+            return row;
         }
 
         private static int SeedFrom(double now)

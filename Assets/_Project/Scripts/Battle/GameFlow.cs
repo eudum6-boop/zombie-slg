@@ -24,6 +24,8 @@ namespace ZombieSLG.Battle
         private readonly List<System.IDisposable> _subs = new List<System.IDisposable>();
         private BaseHud _hud;
         private HeroUi _heroUi;
+        private ArmyUi _armyUi;
+        private ResearchUi _researchUi;
         private readonly List<GachaResult> _pullResults = new List<GachaResult>(10);
 
         private Phase _phase = Phase.Day;
@@ -47,6 +49,14 @@ namespace ZombieSLG.Battle
             _subs.Add(bus.Subscribe<SurvivorArrived>(_ => Toast("새 생존자가 기지에 합류했습니다", new Color(0.6f, 0.85f, 1f))));
             _subs.Add(bus.Subscribe<StarvationChanged>(e =>
                 Toast(e.Starving ? "식량이 바닥났습니다! 사기가 떨어집니다" : "식량 공급이 회복됐습니다", e.Starving ? UiKit.Bad : UiKit.Good)));
+            _subs.Add(bus.Subscribe<TroopsReady>(e =>
+                Toast($"{_ctx.Data.Troop(e.Type).Name} {e.Count}명 {(e.Healed ? "치료 완료" : "훈련 완료")}", new Color(0.6f, 0.9f, 0.6f))));
+            _subs.Add(bus.Subscribe<ResearchChanged>(e =>
+            {
+                if (!e.Completed || !_ctx.Data.HasResearch(e.ResearchId)) return;
+                _ctx.Feedback.Sfx.Play(SfxId.Victory, 0f);
+                Toast($"연구 완료: {_ctx.Data.ResearchNode(e.ResearchId).Name} Lv.{e.Level}", new Color(0.5f, 0.85f, 1f));
+            }));
 
             _battle.ReturnedToBase += OnReturnedToBase;
         }
@@ -54,6 +64,18 @@ namespace ZombieSLG.Battle
         /// <summary>Must be set before <see cref="Start"/>; the HUD needs the flow for its callbacks.</summary>
         public void AttachHud(BaseHud hud) => _hud = hud;
         public void AttachHeroUi(HeroUi heroUi) => _heroUi = heroUi;
+        public void AttachArmyUi(ArmyUi armyUi) => _armyUi = armyUi;
+        public void AttachResearchUi(ResearchUi researchUi) => _researchUi = researchUi;
+
+        private bool ModalOpen =>
+            (_heroUi != null && _heroUi.IsOpen) || (_armyUi != null && _armyUi.IsOpen) || (_researchUi != null && _researchUi.IsOpen);
+
+        private void CloseModals()
+        {
+            _heroUi?.Close();
+            _armyUi?.Close();
+            _researchUi?.Close();
+        }
 
         public void Start()
         {
@@ -74,7 +96,7 @@ namespace ZombieSLG.Battle
             if (_phase != Phase.Day) return;
             _ctx.Feedback.Sfx.Play(SfxId.Click, 0f);
             Select(-1);
-            _heroUi?.Close();
+            CloseModals();
             _hud.SetVisible(false);
             _phase = Phase.Dusk;
             _transition = 0f;
@@ -97,6 +119,70 @@ namespace ZombieSLG.Battle
 
         public void OnClosePanel() => Select(-1);
 
+        // ---- troops / research ----
+
+        /// <summary>Building panel feature button (Barracks / Clinic → troops, Research lab → research).</summary>
+        public void OnBuildingAction(int id)
+        {
+            if (_phase != Phase.Day) return;
+            _ctx.Feedback.Sfx.Play(SfxId.Click, 0f);
+            var type = BaseView.TypeOf(id);
+            Select(-1);
+            if (type == BuildingType.ResearchLab) _researchUi?.Open(_base.State, _base.Now);
+            else _armyUi?.Open(_base.State, _base.Now);
+        }
+
+        public void OnTrain(TroopType type, int count)
+        {
+            var block = _base.Train(type, count);
+            if (block == ArmyBlock.None)
+            {
+                _ctx.Feedback.Sfx.Play(SfxId.Click, 0f);
+                Toast($"{_ctx.Data.Troop(type).Name} {count}명 훈련 시작", new Color(0.6f, 0.9f, 0.6f));
+                return;
+            }
+            _ctx.Feedback.Sfx.Play(SfxId.HeroHurt, 0f);
+            Toast(ArmyBlockText(block), UiKit.Bad);
+        }
+
+        public void OnHeal(TroopType type, int count)
+        {
+            var block = _base.Heal(type, count);
+            if (block == ArmyBlock.None)
+            {
+                _ctx.Feedback.Sfx.Play(SfxId.Click, 0f);
+                Toast($"{_ctx.Data.Troop(type).Name} {count}명 치료 시작", new Color(1f, 0.7f, 0.7f));
+                return;
+            }
+            _ctx.Feedback.Sfx.Play(SfxId.HeroHurt, 0f);
+            Toast(ArmyBlockText(block), UiKit.Bad);
+        }
+
+        public void OnResearch(string id)
+        {
+            var block = _base.StartResearch(id);
+            if (block == ResearchBlock.None)
+            {
+                _ctx.Feedback.Sfx.Play(SfxId.TowerShot, 0f);
+                Toast($"연구 시작: {_ctx.Data.ResearchNode(id).Name}", new Color(0.5f, 0.85f, 1f));
+                return;
+            }
+            _ctx.Feedback.Sfx.Play(SfxId.HeroHurt, 0f);
+            Toast(block == ResearchBlock.NotEnoughResources ? "자원이 부족합니다" : "지금은 연구할 수 없습니다", UiKit.Bad);
+        }
+
+        private static string ArmyBlockText(ArmyBlock block)
+        {
+            switch (block)
+            {
+                case ArmyBlock.NoBuilding: return "건물이 필요합니다";
+                case ArmyBlock.OverCapacity: return "병영 수용 인원이 부족합니다 — 병영을 업그레이드하세요";
+                case ArmyBlock.NotEnoughWounded: return "치료할 부상병이 없습니다";
+                case ArmyBlock.NotEnoughResources: return "자원이 부족합니다";
+                default: return "지금은 할 수 없습니다";
+            }
+        }
+
         // ---- heroes / recruiting ----
 
         public void OnHeroesButton()
@@ -104,6 +190,7 @@ namespace ZombieSLG.Battle
             if (_phase != Phase.Day) return;
             _ctx.Feedback.Sfx.Play(SfxId.Click, 0f);
             Select(-1);
+            CloseModals();
             _heroUi.OpenHeroes(_base.Heroes);
         }
 
@@ -112,6 +199,7 @@ namespace ZombieSLG.Battle
             if (_phase != Phase.Day) return;
             _ctx.Feedback.Sfx.Play(SfxId.Click, 0f);
             Select(-1);
+            CloseModals();
             _heroUi.OpenRecruit(_base.Heroes);
         }
 
@@ -157,10 +245,21 @@ namespace ZombieSLG.Battle
         {
             var heroes = _base.Heroes;
             var leader = heroes.Leader;
+            float Bonus(ResearchEffect e) => 1f + (float)state.ResearchBonus(e);
+            var army = new NightArmy
+            {
+                Troops = state.HealthyCounts(),
+                TroopDamage = Bonus(ResearchEffect.TroopDamage),
+                TroopHp = Bonus(ResearchEffect.TroopHp),
+                TowerDamage = Bonus(ResearchEffect.TowerDamage),
+                HqHp = Bonus(ResearchEffect.HqHp),
+                HeroDamage = Bonus(ResearchEffect.HeroDamage),
+                SkillDamage = Bonus(ResearchEffect.SkillDamage),
+            };
             return new NightSetup(state.Night, state.HqLevel, state.LevelOf(BasePlots.Clinic),
                 new[] { state.LevelOf(BasePlots.TowerA), state.LevelOf(BasePlots.TowerB) },
                 leader.Name, heroes.CombatStats(leader.Id), HeroUi.ParseHex(leader.ColorHex, new Color(0.2f, 0.42f, 0.78f)),
-                heroes.ScoutBonus);
+                heroes.ScoutBonus, army);
         }
 
         // ------------------------------------------------------------------ frame
@@ -178,10 +277,15 @@ namespace ZombieSLG.Battle
             switch (_phase)
             {
                 case Phase.Day:
-                    if (_heroUi != null && _heroUi.IsOpen)
+                    if (ModalOpen)
                     {
-                        _heroUi.Refresh(_base.Heroes);
-                        _heroUi.Tick(Time.unscaledDeltaTime);
+                        if (_heroUi != null && _heroUi.IsOpen)
+                        {
+                            _heroUi.Refresh(_base.Heroes);
+                            _heroUi.Tick(Time.unscaledDeltaTime);
+                        }
+                        if (_armyUi != null && _armyUi.IsOpen) _armyUi.Refresh(state, _base.Now);
+                        if (_researchUi != null && _researchUi.IsOpen) _researchUi.Refresh(state, _base.Now);
                     }
                     else
                     {
@@ -223,7 +327,8 @@ namespace ZombieSLG.Battle
             _ctx.Hud.SetBattleVisible(false);
             var s = _base.State;
             _ctx.Hq.SetLevel(s.HqLevel);
-            _ctx.Hq.ResetState(_ctx.Config.HqMaxHp * _ctx.Data.Defense.HqHpMultiplier(s.HqLevel)); // also restores a collapsed HQ
+            float hqResearch = 1f + (float)s.ResearchBonus(ResearchEffect.HqHp);
+            _ctx.Hq.ResetState(_ctx.Config.HqMaxHp * _ctx.Data.Defense.HqHpMultiplier(s.HqLevel) * hqResearch); // also restores a collapsed HQ
             _ctx.Hero.ResetState();
             _hud.SetVisible(true);
             Select(-1);
@@ -232,7 +337,7 @@ namespace ZombieSLG.Battle
         private void OnReturnedToBase(NightOutcome outcome)
         {
             int nightBefore = _base.State.Night;
-            _base.ApplyNight(outcome.Victory, outcome.Reward, outcome.Kills);
+            _base.ApplyNight(outcome.Victory, outcome.Reward, outcome.Kills, outcome.Dead, outcome.Wounded);
             _phase = Phase.Dawn;
             _transition = 0f;
             _hud.SetVisible(true);

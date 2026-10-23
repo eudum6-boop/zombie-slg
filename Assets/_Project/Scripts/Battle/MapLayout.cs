@@ -59,6 +59,16 @@ namespace ZombieSLG.Battle
             new RectInt(18, 19, 3, 3),  // 5 Clinic
             new RectInt(10, 19, 2, 2),  // 6 Tower A
             new RectInt(16, 19, 2, 2),  // 7 Tower B
+            new RectInt(7, 12, 3, 2),   // 8 Barracks
+            new RectInt(18, 12, 3, 2),  // 9 Research lab
+        };
+
+        /// <summary>Where each gate squad stands (just inside the gate) and which way it faces.</summary>
+        public static readonly (string name, Vector3 post, Vector3 facing)[] SquadPosts =
+        {
+            ("북문", new Vector3(0f, 0f, 7.5f), Vector3.forward),
+            ("서문", new Vector3(-5.5f, 0f, 1.5f), Vector3.left),
+            ("동문", new Vector3(5.5f, 0f, 1.5f), Vector3.right),
         };
 
         public static readonly RectInt[] Cars =
