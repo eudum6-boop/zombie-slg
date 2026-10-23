@@ -115,6 +115,9 @@ namespace ZombieSLG.Application
         private readonly GameData _data;
         private double _lastSave;
 
+        /// <summary>Raised after every local save (cloud sync listens to this).</summary>
+        public event Action<GameSave> Saved;
+
         public BaseState State { get; private set; }
         public HeroRoster Heroes { get; private set; }
         public EventBus Bus => _bus;
@@ -245,6 +248,7 @@ namespace ZombieSLG.Application
         {
             _repo.Save(State.Data);
             _lastSave = _clock.Now;
+            Saved?.Invoke(State.Data);
         }
 
         public void ResetProgress()

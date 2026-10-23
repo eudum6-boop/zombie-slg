@@ -3,7 +3,10 @@
     "rootNamespace": "ZombieSLG.Infrastructure",
     "references": [
         "ZombieSLG.Domain",
-        "ZombieSLG.Application"
+        "ZombieSLG.Application",
+        "Unity.Services.Core",
+        "Unity.Services.Authentication",
+        "Unity.Services.CloudSave"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
