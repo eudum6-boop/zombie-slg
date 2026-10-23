@@ -24,8 +24,15 @@ namespace ZombieSLG.Battle
         [SerializeField] private bool _showFlowFieldGizmos;
 
         private BattleContext _ctx;
+        /// <summary>Set by the editor menu "진행 데이터 초기화" so the next run doesn't restore the old cloud save.</summary>
+        public const string SkipCloudPullKey = "zslg.cloud.skip_pull";
+
         private BaseService _baseService;
         private GameFlow _flow;
+        private BaseHud _baseHud;
+        private UgsCloudSave _cloud;
+        private CloudSyncService _sync;
+        private bool _started;
 
         private void Awake()
         {
@@ -102,7 +109,12 @@ namespace ZombieSLG.Battle
                 onResultButton: battle.OnResultButton);
 
             // Layers: infrastructure → application → presentation.
-            _baseService = new BaseService(new SystemClock(), new LocalSaveRepository(), new EventBus(), data);
+            var clock = new SystemClock();
+            var localRepo = new LocalSaveRepository();
+            _baseService = new BaseService(clock, localRepo, new EventBus(), data);
+            _cloud = new UgsCloudSave();
+            _sync = new CloudSyncService(_cloud, localRepo, clock, msg => Debug.Log("[ZombieSLG][클라우드] " + msg));
+            _baseService.Saved += _sync.MarkDirty;
             var baseView = new BaseView(ctx);
             _flow = new GameFlow(ctx, _baseService, baseView, battle, input);
             var baseHud = new BaseHud(ctx, baseView, transform,
@@ -120,12 +132,48 @@ namespace ZombieSLG.Battle
                 onRecruit: _flow.OnRecruit));
             _flow.AttachArmyUi(new ArmyUi(ctx, baseHud.Root, onTrain: _flow.OnTrain, onHeal: _flow.OnHeal));
             _flow.AttachResearchUi(new ResearchUi(ctx, baseHud.Root, onStart: _flow.OnResearch));
+            _baseHud = baseHud;
+            baseHud.SetVisible(false); // shown by GameFlow once the save is loaded
+        }
+
+        /// <summary>
+        /// Server first (sign in, pull the newer save), then the game. Offline or slow network falls back
+        /// to the local save after the timeout, so the game always starts.
+        /// </summary>
+        private async void Start()
+        {
+            if (_flow == null) return;
+            bool skipPull = PlayerPrefs.GetInt(SkipCloudPullKey, 0) == 1;
+
+            bool online = await _cloud.ConnectAsync();
+            var source = SyncSource.Offline;
+            if (online && !skipPull) source = await _sync.PullAsync();
+            else if (online) source = SyncSource.Local;
+            if (this == null) return; // play mode stopped while waiting
+
+            if (skipPull)
+            {
+                PlayerPrefs.DeleteKey(SkipCloudPullKey);
+                PlayerPrefs.Save();
+            }
+
             _flow.Start();
+            _started = true;
+
+            switch (source)
+            {
+                case SyncSource.Cloud: _flow.Notify("클라우드 세이브를 불러왔습니다", new Color(0.5f, 0.85f, 1f)); break;
+                case SyncSource.Local: _flow.Notify("클라우드 저장 연결됨", new Color(0.5f, 0.85f, 1f)); break;
+                default: _flow.Notify("오프라인 모드 — 기기에만 저장됩니다", new Color(1f, 0.8f, 0.4f)); break;
+            }
+            if (online) _ = _sync.PushNowAsync(); // upload the freshly loaded/migrated save
         }
 
         private void Update()
         {
-            _flow?.Tick(Time.deltaTime);
+            if (!_started) return;
+            _flow.Tick(Time.deltaTime);
+            _sync.Tick();
         }
 
         private static GameData LoadGameData()
@@ -148,18 +196,22 @@ namespace ZombieSLG.Battle
 
         private void OnApplicationPause(bool paused)
         {
-            if (paused) _baseService?.Save();
+            if (!paused || !_started) return;
+            _baseService.Save();
+            _ = _sync.PushNowAsync(); // mobile: the app may be killed while in the background
         }
 
         private void OnApplicationQuit()
         {
-            _baseService?.Save();
+            if (!_started) return;
+            _baseService.Save();
+            _ = _sync.PushNowAsync(); // best effort; the next launch uploads anyway
         }
 
         private void OnDisable()
         {
             Time.timeScale = 1f;
-            _baseService?.Save();
+            if (_started) _baseService.Save();
         }
 
         private static void SetupCameraAndLighting(BattleContext ctx)

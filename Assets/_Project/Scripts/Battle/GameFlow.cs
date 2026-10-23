@@ -407,5 +407,8 @@ namespace ZombieSLG.Battle
         }
 
         private void Toast(string message, Color color) => _hud?.Toast(message, color);
+
+        /// <summary>Toast from outside the flow (e.g. cloud sync status at startup).</summary>
+        public void Notify(string message, Color color) => Toast(message, color);
     }
 }

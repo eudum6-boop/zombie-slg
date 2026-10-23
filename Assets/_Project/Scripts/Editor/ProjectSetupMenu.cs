@@ -149,9 +149,11 @@ namespace ZombieSLG.EditorTools
                 return;
             }
             new LocalSaveRepository().Delete();
+            // Without this the next Play would restore the (newer-looking) cloud save.
+            PlayerPrefs.SetInt(ZombieSLG.Battle.BattleBootstrap.SkipCloudPullKey, 1);
             foreach (var k in new[] { "zslg.night", "zslg.food", "zslg.fuel", "zslg.materials", "zslg.shards" }) PlayerPrefs.DeleteKey(k);
             PlayerPrefs.Save();
-            Debug.Log("[ZombieSLG] 세이브를 삭제했습니다. 다음 Play는 새 게임으로 시작합니다.");
+            Debug.Log("[ZombieSLG] 세이브를 삭제했습니다. 다음 Play는 새 게임으로 시작하고, 클라우드 세이브도 새 게임으로 덮어씁니다.");
         }
 
         [MenuItem("ZombieSLG/세이브 폴더 열기", priority = 21)]
