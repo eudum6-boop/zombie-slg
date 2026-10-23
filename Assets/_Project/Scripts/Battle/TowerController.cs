@@ -16,6 +16,9 @@ namespace ZombieSLG.Battle
         private float _rangeBonus;
         private float _intervalMult = 1f;
 
+        /// <summary>Research multiplier (def_turret), set before each night.</summary>
+        public float ResearchMultiplier { get; set; } = 1f;
+
         public int Level { get; private set; }
         public bool IsBuilt => Level > 0;
 
@@ -80,7 +83,7 @@ namespace ZombieSLG.Battle
             if (_fireTimer > 0f) return;
             _fireTimer = cfg.TowerFireInterval * _intervalMult;
 
-            var hit = CombatRules.RollHit(cfg.TowerDamage * _damageMult, cfg.TowerCritChance, cfg.TowerCritMultiplier, _ctx.Roll());
+            var hit = CombatRules.RollHit(cfg.TowerDamage * _damageMult * ResearchMultiplier, cfg.TowerCritChance, cfg.TowerCritMultiplier, _ctx.Roll());
             _alternate = !_alternate;
             Vector3 from = _muzzle.position + _head.right * (_alternate ? 0.15f : -0.15f);
             Vector3 to = target.AimPoint + Random.insideUnitSphere * 0.12f;

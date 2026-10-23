@@ -71,6 +71,15 @@ namespace ZombieSLG.Battle
             heroGo.transform.SetParent(ctx.WorldRoot, false);
             ctx.Hero = heroGo.AddComponent<HeroController>();
             ctx.Hero.Init(ctx, new Vector3(0f, 0f, 4.5f));
+            ctx.Defenders.Add(ctx.Hero);
+
+            // Gate squads, just inside each gate (order matches SquadMath.Split: north gets the remainder first).
+            foreach (var (name, post, facing) in MapLayout.SquadPosts)
+            {
+                var squad = new SquadController(ctx, name, post, facing);
+                ctx.Squads.Add(squad);
+                ctx.Defenders.Add(squad);
+            }
 
             foreach (var pos in new[] { MapLayout.PlotCenter(BasePlots.TowerA), MapLayout.PlotCenter(BasePlots.TowerB) })
             {
@@ -102,12 +111,15 @@ namespace ZombieSLG.Battle
                 onWorkers: _flow.OnWorkers,
                 onClosePanel: _flow.OnClosePanel,
                 onHeroes: _flow.OnHeroesButton,
-                onRecruit: _flow.OnRecruitButton);
+                onRecruit: _flow.OnRecruitButton,
+                onAction: _flow.OnBuildingAction);
             _flow.AttachHud(baseHud);
             _flow.AttachHeroUi(new HeroUi(ctx, baseHud.Root,
                 onPromote: _flow.OnPromote,
                 onAssign: _flow.OnAssign,
                 onRecruit: _flow.OnRecruit));
+            _flow.AttachArmyUi(new ArmyUi(ctx, baseHud.Root, onTrain: _flow.OnTrain, onHeal: _flow.OnHeal));
+            _flow.AttachResearchUi(new ResearchUi(ctx, baseHud.Root, onStart: _flow.OnResearch));
             _flow.Start();
         }
 

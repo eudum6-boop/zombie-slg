@@ -1,0 +1,19 @@
+# 연구. branch: Economy/Military/Defense, tier: 연구소 레벨이 tier 이상이어야 연구 가능.
+# requires: 선행 연구 id (Lv.1 이상 필요, 비우면 없음). 비용·시간 = 기본값 × growth^(다음 레벨-1)
+# effect: production_food / production_fuel / production_materials / storage / build_speed /
+#         troop_damage / troop_hp / train_speed / heal_cost / tower_damage / hq_hp / hero_damage / skill_damage
+# per_level: 레벨당 효과 (0.05 = 5%). *_speed, heal_cost는 시간·비용 감소율입니다.
+id,name,branch,tier,requires,max_level,cost_food,cost_fuel,cost_materials,cost_growth,seconds,time_growth,effect,per_level,description
+eco_farming,개량 농법,Economy,1,,5,80,20,60,1.5,20,1.5,production_food,0.05,식량 생산량 증가
+eco_refinery,간이 정유,Economy,1,,5,60,40,60,1.5,20,1.5,production_fuel,0.05,연료 생산량 증가
+eco_salvage,고철 재활용,Economy,2,eco_farming,5,100,60,60,1.55,40,1.5,production_materials,0.05,자재 생산량 증가
+eco_storage,창고 확장,Economy,2,eco_refinery,5,120,60,120,1.55,40,1.5,storage,0.08,모든 자원 창고 용량 증가
+eco_engineering,공병 기술,Economy,3,eco_storage,5,200,120,200,1.6,90,1.5,build_speed,0.05,건설 시간 단축
+mil_drill,사격 훈련,Military,1,,5,80,40,40,1.5,25,1.5,troop_damage,0.06,병력 공격력 증가
+mil_armor,방탄 장비,Military,1,,5,60,40,80,1.5,25,1.5,troop_hp,0.06,병력 체력 증가
+mil_bootcamp,신병 훈련소,Military,2,mil_drill,5,120,80,80,1.55,50,1.5,train_speed,0.08,훈련 시간 단축
+mil_fieldmedic,야전 의무,Military,2,mil_armor,5,140,60,60,1.55,50,1.5,heal_cost,0.08,치료 비용 감소
+def_turret,포탑 개량,Defense,1,,5,60,60,80,1.5,25,1.5,tower_damage,0.06,기관총 포탑 공격력 증가
+def_bunker,본부 보강,Defense,1,,5,80,40,100,1.5,25,1.5,hq_hp,0.06,밤 본부 체력 증가
+def_tactics,영웅 전술,Defense,2,def_turret,5,120,80,80,1.55,50,1.5,hero_damage,0.06,출전 영웅 공격력 증가
+def_napalm,네이팜,Defense,2,def_bunker,5,120,120,80,1.55,50,1.5,skill_damage,0.08,화염 폭격 피해 증가

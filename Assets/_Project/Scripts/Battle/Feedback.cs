@@ -9,6 +9,7 @@ namespace ZombieSLG.Battle
         Tower,
         Skill,
         Burn,
+        Troop,
     }
 
     /// <summary>

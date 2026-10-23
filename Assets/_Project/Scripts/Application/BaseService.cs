@@ -76,6 +76,23 @@ namespace ZombieSLG.Application
         public HeroPromoted(string heroId, int stars) { HeroId = heroId; Stars = stars; }
     }
 
+    /// <summary>A training or healing batch finished (Healed = from the clinic).</summary>
+    public readonly struct TroopsReady
+    {
+        public readonly TroopType Type;
+        public readonly int Count;
+        public readonly bool Healed;
+        public TroopsReady(TroopType type, int count, bool healed) { Type = type; Count = count; Healed = healed; }
+    }
+
+    public readonly struct ResearchChanged
+    {
+        public readonly string ResearchId;
+        public readonly int Level;
+        public readonly bool Completed;
+        public ResearchChanged(string id, int level, bool completed) { ResearchId = id; Level = level; Completed = completed; }
+    }
+
     public readonly struct NightApplied
     {
         public readonly bool Victory;
@@ -191,10 +208,34 @@ namespace ZombieSLG.Application
             return block;
         }
 
-        public void ApplyNight(bool victory, NightReward reward, int kills)
+        public ArmyBlock Train(TroopType type, int count)
+        {
+            var block = State.Train(type, count, _clock.Now);
+            DrainEvents();
+            if (block == ArmyBlock.None) Save();
+            return block;
+        }
+
+        public ArmyBlock Heal(TroopType type, int count)
+        {
+            var block = State.Heal(type, count, _clock.Now);
+            DrainEvents();
+            if (block == ArmyBlock.None) Save();
+            return block;
+        }
+
+        public ResearchBlock StartResearch(string id)
+        {
+            var block = State.StartResearch(id, _clock.Now);
+            DrainEvents();
+            if (block == ResearchBlock.None) Save();
+            return block;
+        }
+
+        public void ApplyNight(bool victory, NightReward reward, int kills, int[] dead = null, int[] wounded = null)
         {
             State.Advance(_clock.Now);
-            State.ApplyNightResult(victory, reward, kills);
+            State.ApplyNightResult(victory, reward, kills, dead, wounded);
             DrainEvents();
             _bus.Publish(new NightApplied(victory, reward));
             Save();
@@ -228,6 +269,13 @@ namespace ZombieSLG.Application
                     case BaseEventKind.SurvivorArrived: _bus.Publish(new SurvivorArrived(e.Value)); break;
                     case BaseEventKind.StarvationStarted: _bus.Publish(new StarvationChanged(true)); break;
                     case BaseEventKind.StarvationEnded: _bus.Publish(new StarvationChanged(false)); break;
+                    case BaseEventKind.TrainingCompleted:
+                    case BaseEventKind.HealCompleted:
+                        if (Enum.TryParse(e.Tag, out TroopType t))
+                            _bus.Publish(new TroopsReady(t, e.Value, e.Kind == BaseEventKind.HealCompleted));
+                        break;
+                    case BaseEventKind.ResearchStarted: _bus.Publish(new ResearchChanged(e.Tag, e.Value, false)); break;
+                    case BaseEventKind.ResearchCompleted: _bus.Publish(new ResearchChanged(e.Tag, e.Value, true)); break;
                 }
             }
             events.Clear();

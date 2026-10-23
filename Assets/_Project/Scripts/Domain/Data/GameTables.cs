@@ -59,6 +59,49 @@ namespace ZombieSLG.Domain
     }
 
     [Serializable]
+    public sealed class TroopRow
+    {
+        public string Id;
+        public string Name;
+        public string Description;
+        public float Hp;
+        public float Damage;
+        public float FireInterval;
+        public float Range;
+        public double TrainSeconds;
+        public int CostFood;
+        public int CostFuel;
+        public int CostMaterials;
+        public double HealSeconds;
+        public int HealFood;
+        public int HealFuel;
+        public int HealMaterials;
+        public float VsWalker;
+        public float VsRunner;
+        public float VsBrute;
+    }
+
+    [Serializable]
+    public sealed class ResearchRow
+    {
+        public string Id;
+        public string Name;
+        public string Branch;
+        public int Tier;
+        public string Requires;
+        public int MaxLevel;
+        public int CostFood;
+        public int CostFuel;
+        public int CostMaterials;
+        public double CostGrowth;
+        public double Seconds;
+        public double TimeGrowth;
+        public string Effect;
+        public double PerLevel;
+        public string Description;
+    }
+
+    [Serializable]
     public sealed class HordeRow
     {
         public float Time;
@@ -82,13 +125,17 @@ namespace ZombieSLG.Domain
         public const string HordesFile = "hordes.csv";
         public const string BalanceFile = "balance.csv";
         public const string HeroesFile = "heroes.csv";
-        public static readonly string[] FileNames = { ZombiesFile, BuildingsFile, HordesFile, BalanceFile, HeroesFile };
+        public const string TroopsFile = "troops.csv";
+        public const string ResearchFile = "research.csv";
+        public static readonly string[] FileNames = { ZombiesFile, BuildingsFile, HordesFile, BalanceFile, HeroesFile, TroopsFile, ResearchFile };
 
         public List<ZombieRow> Zombies = new List<ZombieRow>();
         public List<BuildingRow> Buildings = new List<BuildingRow>();
         public List<HordeRow> Hordes = new List<HordeRow>();
         public List<BalanceRow> Balance = new List<BalanceRow>();
         public List<HeroRow> Heroes = new List<HeroRow>();
+        public List<TroopRow> Troops = new List<TroopRow>();
+        public List<ResearchRow> Research = new List<ResearchRow>();
 
         /// <param name="readFile">Returns the text of a table file by name, or null if missing.</param>
         public static GameTables Parse(Func<string, string> readFile, List<string> errors)
@@ -160,6 +207,53 @@ namespace ZombieSLG.Domain
                         ScoutBonus = r.Num("scout_bonus", errors, 0),
                         Color = r.Str("color"),
                         Starter = r.Int("starter", errors, 0) != 0,
+                        Description = r.Str("description"),
+                    });
+
+            var troops = Load(readFile, TroopsFile, errors);
+            if (troops != null)
+                foreach (var r in troops.Records)
+                    t.Troops.Add(new TroopRow
+                    {
+                        Id = r.Str("id"),
+                        Name = r.Str("name"),
+                        Description = r.Str("description"),
+                        Hp = (float)r.Num("hp", errors, 1),
+                        Damage = (float)r.Num("damage", errors, 0),
+                        FireInterval = (float)r.Num("fire_interval", errors, 0.05),
+                        Range = (float)r.Num("range", errors, 0.5),
+                        TrainSeconds = r.Num("train_seconds", errors, 0),
+                        CostFood = r.Int("cost_food", errors, 0),
+                        CostFuel = r.Int("cost_fuel", errors, 0),
+                        CostMaterials = r.Int("cost_materials", errors, 0),
+                        HealSeconds = r.Num("heal_seconds", errors, 0),
+                        HealFood = r.Int("heal_food", errors, 0),
+                        HealFuel = r.Int("heal_fuel", errors, 0),
+                        HealMaterials = r.Int("heal_materials", errors, 0),
+                        VsWalker = (float)r.Num("vs_walker", errors, 0),
+                        VsRunner = (float)r.Num("vs_runner", errors, 0),
+                        VsBrute = (float)r.Num("vs_brute", errors, 0),
+                    });
+
+            var research = Load(readFile, ResearchFile, errors);
+            if (research != null)
+                foreach (var r in research.Records)
+                    t.Research.Add(new ResearchRow
+                    {
+                        Id = r.Str("id"),
+                        Name = r.Str("name"),
+                        Branch = r.Str("branch"),
+                        Tier = r.Int("tier", errors, 1),
+                        Requires = r.Str("requires"),
+                        MaxLevel = r.Int("max_level", errors, 1),
+                        CostFood = r.Int("cost_food", errors, 0),
+                        CostFuel = r.Int("cost_fuel", errors, 0),
+                        CostMaterials = r.Int("cost_materials", errors, 0),
+                        CostGrowth = r.Num("cost_growth", errors, 1),
+                        Seconds = r.Num("seconds", errors, 0),
+                        TimeGrowth = r.Num("time_growth", errors, 1),
+                        Effect = r.Str("effect"),
+                        PerLevel = r.Num("per_level", errors, 0),
                         Description = r.Str("description"),
                     });
 

@@ -18,6 +18,8 @@ namespace ZombieSLG.Domain
         Shelter = 4,
         Clinic = 5,
         GunTower = 6,
+        Barracks = 7,
+        ResearchLab = 8,
     }
 
     public readonly struct Cost

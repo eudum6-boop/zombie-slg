@@ -195,6 +195,8 @@ namespace ZombieSLG.Battle
                 case BuildingType.Workshop: pv.Height = BuildWorkshop(model, s); break;
                 case BuildingType.Shelter: pv.Height = BuildShelter(model, size, s); break;
                 case BuildingType.Clinic: pv.Height = BuildClinic(model, s); break;
+                case BuildingType.Barracks: pv.Height = BuildBarracks(model, size, s); break;
+                case BuildingType.ResearchLab: pv.Height = BuildLab(model, size, s); break;
             }
 
             // Level pips: one small light per level on the pad edge.
@@ -265,6 +267,34 @@ namespace ZombieSLG.Battle
             _m.Primitive(PrimitiveType.Cube, "CrossH", t, new Vector3(0f, 1.33f * s, 0f), new Vector3(1.1f, 0.06f, 0.35f), red);
             _m.Primitive(PrimitiveType.Cube, "CrossV", t, new Vector3(0f, 1.33f * s, 0f), new Vector3(0.35f, 0.06f, 1.1f), red);
             return 1.6f * s;
+        }
+
+        private float BuildBarracks(Transform t, Vector2 size, float s)
+        {
+            var olive = _m.Lit(new Color(0.33f, 0.38f, 0.26f));
+            var sand = _m.Lit(new Color(0.62f, 0.55f, 0.40f));
+            _m.Primitive(PrimitiveType.Cube, "Hut", t, new Vector3(-0.3f, 0.5f * s, 0.15f), new Vector3(size.x * 0.6f, 1.0f * s, size.y * 0.6f), olive);
+            var roof = _m.Primitive(PrimitiveType.Cylinder, "Roof", t, new Vector3(-0.3f, 1.0f * s, 0.15f), new Vector3(size.y * 0.6f, size.x * 0.3f, size.y * 0.6f), olive);
+            roof.transform.localRotation = Quaternion.Euler(0f, 0f, 90f);
+            _m.Primitive(PrimitiveType.Cube, "Sandbags", t, new Vector3(0f, 0.18f, -size.y * 0.38f), new Vector3(size.x * 0.85f, 0.36f, 0.3f), sand);
+            _m.Primitive(PrimitiveType.Cylinder, "Flagpole", t, new Vector3(size.x * 0.38f, 0.9f * s, 0.3f), new Vector3(0.06f, 0.9f * s, 0.06f), _m.Lit(new Color(0.3f, 0.3f, 0.3f)));
+            var flag = _m.Primitive(PrimitiveType.Cube, "Flag", t, new Vector3(size.x * 0.38f + 0.25f, 1.6f * s, 0.3f), new Vector3(0.5f, 0.3f, 0.03f), _m.Lit(new Color(0.75f, 0.3f, 0.12f)));
+            NoShadow(flag.transform);
+            return 1.9f * s;
+        }
+
+        private float BuildLab(Transform t, Vector2 size, float s)
+        {
+            var wall = _m.Lit(new Color(0.78f, 0.80f, 0.82f));
+            var dark = _m.Lit(new Color(0.22f, 0.24f, 0.28f));
+            _m.Primitive(PrimitiveType.Cube, "Body", t, new Vector3(0f, 0.55f * s, 0.1f), new Vector3(size.x * 0.8f, 1.1f * s, size.y * 0.7f), wall);
+            _m.Primitive(PrimitiveType.Sphere, "Dome", t, new Vector3(-0.4f, 1.1f * s, 0.1f), new Vector3(1.0f, 0.8f, 1.0f) * s, wall);
+            _m.Primitive(PrimitiveType.Cylinder, "Mast", t, new Vector3(0.8f, 1.5f * s, 0.2f), new Vector3(0.06f, 0.45f * s, 0.06f), dark);
+            var light = _m.Primitive(PrimitiveType.Sphere, "Beacon", t, new Vector3(0.8f, 1.98f * s, 0.2f), Vector3.one * 0.16f, _m.Unlit(new Color(0.4f, 1.6f, 2.2f)));
+            NoShadow(light.transform);
+            var window = _m.Emissive(new Color(0.6f, 0.85f, 1f), new Color(0.5f, 1.2f, 1.8f));
+            _m.Primitive(PrimitiveType.Cube, "Window", t, new Vector3(0.3f, 0.6f * s, -size.y * 0.25f - 0.01f), new Vector3(0.8f, 0.3f, 0.04f), window);
+            return 2.1f * s;
         }
 
         private Transform BuildEmptyMarker(Transform parent, Vector2 size)

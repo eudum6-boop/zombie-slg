@@ -6,6 +6,19 @@ using ZombieSLG.Domain;
 
 namespace ZombieSLG.Battle
 {
+    /// <summary>Troops sent out tonight and research multipliers (1 = no bonus).</summary>
+    public sealed class NightArmy
+    {
+        /// <summary>Healthy troops per TroopType; split across the gates.</summary>
+        public int[] Troops = new int[TroopRules.TypeCount];
+        public float TroopDamage = 1f;
+        public float TroopHp = 1f;
+        public float TowerDamage = 1f;
+        public float HqHp = 1f;
+        public float HeroDamage = 1f;
+        public float SkillDamage = 1f;
+    }
+
     /// <summary>Everything the base hands over to a night.</summary>
     public readonly struct NightSetup
     {
@@ -17,10 +30,12 @@ namespace ZombieSLG.Battle
         public readonly HeroCombatStats LeaderStats;
         public readonly Color LeaderColor;
         public readonly double ScoutBonus;
+        public readonly NightArmy Army;
 
         public NightSetup(int night, int hqLevel, int clinicLevel, int[] towerLevels,
-            string leaderName, HeroCombatStats leaderStats, Color leaderColor, double scoutBonus)
+            string leaderName, HeroCombatStats leaderStats, Color leaderColor, double scoutBonus, NightArmy army)
         {
+            Army = army ?? new NightArmy();
             Night = night;
             HqLevel = hqLevel;
             ClinicLevel = clinicLevel;
@@ -38,9 +53,14 @@ namespace ZombieSLG.Battle
         public readonly NightReward Reward;
         public readonly int Kills;
         public readonly float HqHpRatio;
+        /// <summary>Per TroopType. Fallen troops are either dead or wounded (heal them at the clinic).</summary>
+        public readonly int[] Dead;
+        public readonly int[] Wounded;
 
-        public NightOutcome(bool victory, NightReward reward, int kills, float hqHpRatio)
+        public NightOutcome(bool victory, NightReward reward, int kills, float hqHpRatio, int[] dead, int[] wounded)
         {
+            Dead = dead;
+            Wounded = wounded;
             Victory = victory;
             Reward = reward;
             Kills = kills;
@@ -103,7 +123,10 @@ namespace ZombieSLG.Battle
 
             ctx.Hq.SetLevel(setup.HqLevel);
             var defense = ctx.Data.Defense;
-            ctx.Hq.ResetState(ctx.Config.HqMaxHp * defense.HqHpMultiplier(setup.HqLevel));
+            var army = setup.Army;
+            ctx.Hq.ResetState(ctx.Config.HqMaxHp * defense.HqHpMultiplier(setup.HqLevel) * army.HqHp);
+            ctx.Hero.DamageMultiplier = army.HeroDamage;
+            ctx.Hero.SkillMultiplier = army.SkillDamage;
             ctx.Hero.RegenMultiplier = defense.HeroRegenMultiplier(setup.ClinicLevel);
             ctx.Hero.RespawnMultiplier = defense.HeroRespawnMultiplier(setup.ClinicLevel);
             ctx.Hero.ApplyHero(setup.LeaderName, setup.LeaderStats, setup.LeaderColor);
@@ -114,8 +137,11 @@ namespace ZombieSLG.Battle
             {
                 int lv = setup.TowerLevels != null && i < setup.TowerLevels.Length ? setup.TowerLevels[i] : 0;
                 ctx.Towers[i].SetLevel(lv);
+                ctx.Towers[i].ResearchMultiplier = army.TowerDamage;
                 ctx.Towers[i].ResetState();
             }
+
+            DeploySquads(army);
 
             _director = new WaveDirector(_waveSettings, ctx.Data.Night, _night, _night * 7919 + 17);
             _lastHordeWarned = -1;
@@ -157,6 +183,7 @@ namespace ZombieSLG.Battle
             _ctx.Zombies.DespawnAll();
             _ctx.Skill.ResetState();
             _ctx.Hero.ResetState();
+            foreach (var sq in _ctx.Squads) sq.Hide();
             _ctx.Hud.HideOverlays();
             _ctx.Hud.SetBattleVisible(false);
             _phase = Phase.Idle;
@@ -184,6 +211,7 @@ namespace ZombieSLG.Battle
                 }
 
                 ctx.Hero.Tick(dt);
+                foreach (var sq in ctx.Squads) sq.Tick(dt);
                 foreach (var t in ctx.Towers) t.Tick(dt);
                 ctx.Skill.Tick(dt);
                 ctx.Zombies.Tick(dt, true);
@@ -260,7 +288,15 @@ namespace ZombieSLG.Battle
             float hpRatio = ctx.Hq.HpRatio;
             var reward = ctx.Data.Rewards.Calculate(_night, victory, kills, hpRatio, _scoutBonus);
             int stars = ctx.Data.Rewards.Stars(victory, hpRatio);
-            _outcome = new NightOutcome(victory, reward, kills, hpRatio);
+            var dead = new int[TroopRules.TypeCount];
+            var wounded = new int[TroopRules.TypeCount];
+            foreach (var sq in ctx.Squads)
+                for (int t = 0; t < TroopRules.TypeCount; t++)
+                {
+                    dead[t] += sq.Dead((TroopType)t);
+                    wounded[t] += sq.Wounded((TroopType)t);
+                }
+            _outcome = new NightOutcome(victory, reward, kills, hpRatio, dead, wounded);
 
             if (victory)
             {
@@ -282,9 +318,33 @@ namespace ZombieSLG.Battle
                 "<color=#ffb060>— 보상 —</color>\n" +
                 $"식량 +{reward.Food}    연료 +{reward.Fuel}\n" +
                 $"자재 +{reward.Materials}    모집권 +{reward.Tickets}" +
+                CasualtyLine(dead, wounded) +
                 (_scoutBonus > 0 ? $"\n<color=#e0b060>정찰 보너스 +{_scoutBonus * 100:0}%</color>" : "") +
                 (victory ? "\n\n<color=#9fd8ff>새 생존자가 기지를 찾아올 수 있습니다</color>" : "\n\n<color=#9aa4b0>같은 밤에 다시 도전합니다</color>");
             _resultDelay = 1.6f;
+        }
+
+        private string CasualtyLine(int[] dead, int[] wounded)
+        {
+            int d = 0, w = 0;
+            for (int t = 0; t < TroopRules.TypeCount; t++) { d += dead[t]; w += wounded[t]; }
+            if (d + w == 0) return "";
+            return $"\n\n<color=#ff9a80>— 병력 피해 —</color>\n전사 {d}    부상 {w} <color=#9aa4b0>(진료소에서 치료)</color>";
+        }
+
+        /// <summary>Splits each troop type across the gate squads (north first), applying research multipliers.</summary>
+        private void DeploySquads(NightArmy army)
+        {
+            var squads = _ctx.Squads;
+            if (squads.Count == 0) return;
+            var perGate = new int[squads.Count][];
+            for (int g = 0; g < squads.Count; g++) perGate[g] = new int[TroopRules.TypeCount];
+            for (int t = 0; t < TroopRules.TypeCount; t++)
+            {
+                var split = SquadMath.Split(army.Troops[t], squads.Count);
+                for (int g = 0; g < squads.Count; g++) perGate[g][t] = split[g];
+            }
+            for (int g = 0; g < squads.Count; g++) squads[g].Deploy(perGate[g], army.TroopDamage, army.TroopHp);
         }
 
         public static string FormatTime(float seconds)

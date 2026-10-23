@@ -18,6 +18,10 @@ namespace ZombieSLG.Battle
         public HeadquartersView Hq;
         public FirebombSkill Skill;
         public readonly List<TowerController> Towers = new List<TowerController>();
+        /// <summary>Gate squads: north, west, east.</summary>
+        public readonly List<SquadController> Squads = new List<SquadController>();
+        /// <summary>Hero + squads: everything zombies may stop to attack.</summary>
+        public readonly List<IDefender> Defenders = new List<IDefender>();
         public BattleHud Hud;
         public Transform WorldRoot;
         public Light Sun;

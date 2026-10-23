@@ -94,3 +94,12 @@ gacha.rate_legendary,0.02,전설 등급 확률
 gacha.pity_legendary,50,이 횟수 안에 전설 확정 (천장)
 gacha.ten_pull_guarantee_rare,1,10회 모집 시 희귀 이상 1명 확정 (1=켬 0=끔)
 gacha.start_tickets,10,새 게임 시작 모집권
+# ---- 병력 ----
+troops.capacity_base,20,병영 Lv.1 수용 인원 (보유 + 부상 + 훈련 중)
+troops.capacity_per_level,15,병영 레벨당 추가 수용 인원
+troops.wounded_ratio,0.7,쓰러진 병력 중 부상병이 되는 비율 (나머지는 전사)
+troops.heal_speed_per_clinic,0.1,의무실 레벨당 치료 시간 감소율
+troops.heal_speed_min,0.3,치료 시간 최소 배율
+troops.start_infantry,10,새 게임 시작 보병 수
+# ---- 연구 ----
+research.max_reduction,0.75,시간·비용 감소 연구의 최대 감소율
