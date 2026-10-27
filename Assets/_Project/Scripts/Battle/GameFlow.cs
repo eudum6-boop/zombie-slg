@@ -26,6 +26,8 @@ namespace ZombieSLG.Battle
         private HeroUi _heroUi;
         private ArmyUi _armyUi;
         private ResearchUi _researchUi;
+        private RankingUi _rankingUi;
+        private RankingService _ranking;
         private readonly List<GachaResult> _pullResults = new List<GachaResult>(10);
 
         private Phase _phase = Phase.Day;
@@ -66,15 +68,22 @@ namespace ZombieSLG.Battle
         public void AttachHeroUi(HeroUi heroUi) => _heroUi = heroUi;
         public void AttachArmyUi(ArmyUi armyUi) => _armyUi = armyUi;
         public void AttachResearchUi(ResearchUi researchUi) => _researchUi = researchUi;
+        public void AttachRanking(RankingService ranking, RankingUi ui)
+        {
+            _ranking = ranking;
+            _rankingUi = ui;
+        }
 
         private bool ModalOpen =>
-            (_heroUi != null && _heroUi.IsOpen) || (_armyUi != null && _armyUi.IsOpen) || (_researchUi != null && _researchUi.IsOpen);
+            (_heroUi != null && _heroUi.IsOpen) || (_armyUi != null && _armyUi.IsOpen) || (_researchUi != null && _researchUi.IsOpen) ||
+            (_rankingUi != null && _rankingUi.IsOpen);
 
         private void CloseModals()
         {
             _heroUi?.Close();
             _armyUi?.Close();
             _researchUi?.Close();
+            _rankingUi?.Close();
         }
 
         public void Start()
@@ -118,6 +127,23 @@ namespace ZombieSLG.Battle
         }
 
         public void OnClosePanel() => Select(-1);
+
+        // ---- ranking ----
+
+        public async void OnRankingButton()
+        {
+            if (_phase != Phase.Day || _rankingUi == null) return;
+            _ctx.Feedback.Sfx.Play(SfxId.Click, 0f);
+            Select(-1);
+            CloseModals();
+            _rankingUi.OpenLoading();
+            int best = _base.State.Data.BestNight;
+            if (_ranking == null) { _rankingUi.Show(null, best); return; }
+            await _ranking.ReportAsync(best); // make sure our own best is on the board
+            await _ranking.FlushAsync();
+            var page = await _ranking.LoadAsync();
+            if (_rankingUi.IsOpen) _rankingUi.Show(page, best);
+        }
 
         // ---- troops / research ----
 
@@ -338,6 +364,7 @@ namespace ZombieSLG.Battle
         {
             int nightBefore = _base.State.Night;
             _base.ApplyNight(outcome.Victory, outcome.Reward, outcome.Kills, outcome.Dead, outcome.Wounded);
+            if (outcome.Victory && _ranking != null) _ = _ranking.ReportAsync(_base.State.Data.BestNight);
             _phase = Phase.Dawn;
             _transition = 0f;
             _hud.SetVisible(true);

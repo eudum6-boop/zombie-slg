@@ -36,6 +36,7 @@ namespace ZombieSLG.Battle
         private GameObject _nightButton;
         private Text _nightLabel;
         private GameObject _heroButton;
+        private GameObject _rankButton;
         private GameObject _recruitButton;
         private Text _recruitLabel;
         private Text _hintText;
@@ -96,7 +97,7 @@ namespace ZombieSLG.Battle
 
         public BaseHud(BattleContext ctx, BaseView view, Transform parent,
             Action onNight, Action<int> onUpgrade, Action<int, int> onWorkers, Action onClosePanel,
-            Action onHeroes, Action onRecruit, Action<int> onAction)
+            Action onHeroes, Action onRecruit, Action<int> onAction, Action onRanking)
         {
             _ctx = ctx;
             _view = view;
@@ -114,7 +115,7 @@ namespace ZombieSLG.Battle
             for (int i = 0; i < 24; i++) _floaters.Add(CreateFloater(labelLayer));
 
             BuildTopBar();
-            BuildBottom(onNight, onHeroes, onRecruit);
+            BuildBottom(onNight, onHeroes, onRecruit, onRanking);
             BuildPanel(onClosePanel);
             BuildOfflinePopup();
         }
@@ -149,8 +150,12 @@ namespace ZombieSLG.Battle
             }
         }
 
-        private void BuildBottom(Action onNight, Action onHeroes, Action onRecruit)
+        private void BuildBottom(Action onNight, Action onHeroes, Action onRecruit, Action onRanking)
         {
+            var rank = UiKit.Button("RankButton", _root, "순위", 36, new Color(0.28f, 0.3f, 0.36f), onRanking, out _);
+            UiKit.Place((RectTransform)rank.transform, Vector2.zero, Vector2.zero, new Vector2(30f, 270f), new Vector2(190f, 100f));
+            _rankButton = rank.gameObject;
+
             var btn = UiKit.Button("NightButton", _root, "", 46, new Color(0.62f, 0.2f, 0.07f), onNight, out _nightLabel);
             UiKit.Place((RectTransform)btn.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 70f), new Vector2(600f, 180f));
             _nightButton = btn.gameObject;
@@ -164,7 +169,8 @@ namespace ZombieSLG.Battle
             _recruitButton = recruit.gameObject;
 
             _hintText = UiKit.Text("Hint", _root, "건물을 탭해서 짓거나 업그레이드하세요", 32, new Color(1f, 1f, 1f, 0.7f), TextAnchor.MiddleCenter);
-            UiKit.Place(_hintText.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 280f), new Vector2(1000f, 60f));
+            UiKit.Place(_hintText.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 280f), new Vector2(620f, 60f));
+            _hintText.horizontalOverflow = HorizontalWrapMode.Wrap;
         }
 
         private void BuildPanel(Action onClose)
@@ -290,6 +296,7 @@ namespace ZombieSLG.Battle
             _panel.SetActive(id >= 0);
             _nightButton.SetActive(id < 0);
             _heroButton.SetActive(id < 0);
+            _rankButton.SetActive(id < 0);
             _recruitButton.SetActive(id < 0);
             _hintText.gameObject.SetActive(id < 0);
         }

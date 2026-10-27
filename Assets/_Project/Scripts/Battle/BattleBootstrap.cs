@@ -33,6 +33,7 @@ namespace ZombieSLG.Battle
         private UgsCloudSave _cloud;
         private CloudSyncService _sync;
         private SyncedClock _clock;
+        private RankingService _ranking;
         private LocalSaveRepository _localRepo;
         private readonly UgsServerTime _serverTime = new UgsServerTime();
         private bool _started;
@@ -122,6 +123,7 @@ namespace ZombieSLG.Battle
             _cloud = new UgsCloudSave();
             _sync = new CloudSyncService(_cloud, localRepo, clock, msg => Debug.Log("[ZombieSLG][클라우드] " + msg));
             _baseService.Saved += _sync.MarkDirty;
+            _ranking = new RankingService(new UgsLeaderboard(_cloud), msg => Debug.LogWarning("[ZombieSLG][순위] " + msg));
             var baseView = new BaseView(ctx);
             _flow = new GameFlow(ctx, _baseService, baseView, battle, input);
             var baseHud = new BaseHud(ctx, baseView, transform,
@@ -131,7 +133,8 @@ namespace ZombieSLG.Battle
                 onClosePanel: _flow.OnClosePanel,
                 onHeroes: _flow.OnHeroesButton,
                 onRecruit: _flow.OnRecruitButton,
-                onAction: _flow.OnBuildingAction);
+                onAction: _flow.OnBuildingAction,
+                onRanking: _flow.OnRankingButton);
             _flow.AttachHud(baseHud);
             _flow.AttachHeroUi(new HeroUi(ctx, baseHud.Root,
                 onPromote: _flow.OnPromote,
@@ -139,6 +142,7 @@ namespace ZombieSLG.Battle
                 onRecruit: _flow.OnRecruit));
             _flow.AttachArmyUi(new ArmyUi(ctx, baseHud.Root, onTrain: _flow.OnTrain, onHeal: _flow.OnHeal));
             _flow.AttachResearchUi(new ResearchUi(ctx, baseHud.Root, onStart: _flow.OnResearch));
+            _flow.AttachRanking(_ranking, new RankingUi(baseHud.Root));
             _baseHud = baseHud;
             baseHud.SetVisible(false); // shown by GameFlow once the save is loaded
         }
@@ -185,6 +189,7 @@ namespace ZombieSLG.Battle
             if (tampered) _flow.Notify("기기 시간이 서버와 달라 서버 시간 기준으로 맞췄습니다", new Color(1f, 0.6f, 0.4f));
             else if (online && !serverTime) _flow.Notify("서버 시간을 받지 못해 기기 시간을 사용합니다", new Color(1f, 0.8f, 0.4f));
             if (online) _ = _sync.PushNowAsync(); // upload the freshly loaded/migrated save
+            if (online) _ = _ranking.ReportAsync(_baseService.State.Data.BestNight); // scores earned offline
         }
 
         /// <summary>
