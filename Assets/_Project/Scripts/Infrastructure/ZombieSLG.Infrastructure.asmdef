@@ -6,7 +6,8 @@
         "ZombieSLG.Application",
         "Unity.Services.Core",
         "Unity.Services.Authentication",
-        "Unity.Services.CloudSave"
+        "Unity.Services.CloudSave",
+        "Unity.Services.CloudCode"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
