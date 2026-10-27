@@ -32,6 +32,9 @@ namespace ZombieSLG.Battle
         private BaseHud _baseHud;
         private UgsCloudSave _cloud;
         private CloudSyncService _sync;
+        private SyncedClock _clock;
+        private LocalSaveRepository _localRepo;
+        private readonly UgsServerTime _serverTime = new UgsServerTime();
         private bool _started;
 
         private void Awake()
@@ -109,8 +112,12 @@ namespace ZombieSLG.Battle
                 onResultButton: battle.OnResultButton);
 
             // Layers: infrastructure → application → presentation.
-            var clock = new SystemClock();
+            // Game clock: server time once synced, device clock while offline (see SyncedClock).
+            var device = new SystemClock();
+            var clock = new SyncedClock(() => device.Now, () => MonotonicClock.Seconds);
+            _clock = clock;
             var localRepo = new LocalSaveRepository();
+            _localRepo = localRepo;
             _baseService = new BaseService(clock, localRepo, new EventBus(), data);
             _cloud = new UgsCloudSave();
             _sync = new CloudSyncService(_cloud, localRepo, clock, msg => Debug.Log("[ZombieSLG][클라우드] " + msg));
@@ -146,6 +153,13 @@ namespace ZombieSLG.Battle
             bool skipPull = PlayerPrefs.GetInt(SkipCloudPullKey, 0) == 1;
 
             bool online = await _cloud.ConnectAsync();
+            bool serverTime = online && await _clock.TrySyncAsync(_serverTime);
+            if (this == null) return;
+            if (online && !serverTime)
+                Debug.LogWarning("[ZombieSLG] 서버 시간을 받지 못했습니다 (Cloud Code 스크립트 'server-time' 확인) — 기기 시계를 사용합니다.");
+            else if (serverTime)
+                Debug.Log($"[ZombieSLG] 서버 시간 사용 (기기 시계 차이 {_clock.DeviceOffset:+0;-0}초)");
+
             var source = SyncSource.Offline;
             if (online && !skipPull) source = await _sync.PullAsync();
             else if (online) source = SyncSource.Local;
@@ -157,6 +171,8 @@ namespace ZombieSLG.Battle
                 PlayerPrefs.Save();
             }
 
+            bool tampered = serverTime && ClampFutureSave();
+
             _flow.Start();
             _started = true;
 
@@ -166,7 +182,32 @@ namespace ZombieSLG.Battle
                 case SyncSource.Local: _flow.Notify("클라우드 저장 연결됨", new Color(0.5f, 0.85f, 1f)); break;
                 default: _flow.Notify("오프라인 모드 — 기기에만 저장됩니다", new Color(1f, 0.8f, 0.4f)); break;
             }
+            if (tampered) _flow.Notify("기기 시간이 서버와 달라 서버 시간 기준으로 맞췄습니다", new Color(1f, 0.6f, 0.4f));
+            else if (online && !serverTime) _flow.Notify("서버 시간을 받지 못해 기기 시간을 사용합니다", new Color(1f, 0.8f, 0.4f));
             if (online) _ = _sync.PushNowAsync(); // upload the freshly loaded/migrated save
+        }
+
+        /// <summary>
+        /// A save ticked in the future means the device clock was pushed forward while offline.
+        /// Pull it back to server time so no more progress accrues for the fake hours.
+        /// </summary>
+        private bool ClampFutureSave()
+        {
+            var save = _localRepo.Load();
+            double now = _clock.Now;
+            if (save == null || !SyncedClock.LooksTampered(save.LastTick, now)) return false;
+            Debug.LogWarning($"[ZombieSLG] 세이브 시각이 서버보다 {save.LastTick - now:0}초 앞서 있어 서버 시간으로 맞춥니다.");
+            save.LastTick = now;
+            _localRepo.Save(save);
+            return true;
+        }
+
+        /// <summary>The monotonic timer may stop while the app is suspended, so re-read server time on resume.</summary>
+        private async void ResyncAfterResume()
+        {
+            if (!_cloud.IsAvailable) return;
+            bool ok = await _clock.TrySyncAsync(_serverTime);
+            if (!ok) _clock.Unsync(); // device clock, never backwards
         }
 
         private void Update()
@@ -196,7 +237,12 @@ namespace ZombieSLG.Battle
 
         private void OnApplicationPause(bool paused)
         {
-            if (!paused || !_started) return;
+            if (!_started) return;
+            if (!paused)
+            {
+                ResyncAfterResume();
+                return;
+            }
             _baseService.Save();
             _ = _sync.PushNowAsync(); // mobile: the app may be killed while in the background
         }

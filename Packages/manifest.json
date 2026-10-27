@@ -40,6 +40,7 @@
     "com.unity.multiplayer.center": "1.0.0",
     "com.unity.render-pipelines.universal": "17.0.4",
     "com.unity.services.authentication": "3.6.1",
+    "com.unity.services.cloudcode": "2.10.3",
     "com.unity.services.cloudsave": "3.4.0",
     "com.unity.services.core": "1.16.0",
     "com.unity.test-framework": "1.6.0",
