@@ -244,6 +244,22 @@ namespace ZombieSLG.Application
             Save();
         }
 
+        /// <summary>Server ledger is the authority for recruit tickets and gacha counters.</summary>
+        public void ApplyServerBalances(int tickets, int pulls, int pity)
+        {
+            Heroes.ApplyServerBalances(tickets, pulls, pity);
+            Save();
+        }
+
+        /// <summary>Applies a recruit performed by the server and announces it like a local one.</summary>
+        public void ApplyServerRecruit(RecruitResponse response, System.Collections.Generic.List<GachaResult> results)
+        {
+            State.Advance(_clock.Now);
+            Heroes.ApplyServerRecruit(response, results);
+            if (results.Count > 0) _bus.Publish(new HeroesRecruited(results.ToArray()));
+            Save();
+        }
+
         public void Save()
         {
             _repo.Save(State.Data);

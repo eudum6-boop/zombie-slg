@@ -231,6 +231,39 @@ namespace ZombieSLG.Domain
             return PullBlock.None;
         }
 
+        /// <summary>
+        /// Applies a recruit the server performed (Cloud Code). Ownership is decided against the local
+        /// roster so a hero is never added twice; balances are taken from the server.
+        /// </summary>
+        public void ApplyServerRecruit(RecruitResponse r, List<GachaResult> results)
+        {
+            results.Clear();
+            if (r == null || !r.Accepted) return;
+            foreach (var p in r.Results)
+            {
+                if (p == null || !_data.HasHero(p.HeroId)) continue;
+                var rarity = (HeroRarity)p.Rarity;
+                var owned = Get(p.HeroId);
+                int shards = 0;
+                if (owned == null) _s.Heroes.Add(new HeroSave { Id = p.HeroId, Stars = 1, Shards = 0 });
+                else
+                {
+                    shards = p.Shards > 0 ? p.Shards : _data.HeroRules.DuplicateShards(rarity);
+                    owned.Shards += shards;
+                }
+                results.Add(new GachaResult(p.HeroId, rarity, owned == null, shards, p.FromPity, p.FromGuarantee));
+            }
+            ApplyServerBalances(r.Tickets, r.GachaPulls, r.GachaPity);
+        }
+
+        /// <summary>Lines the local ticket/gacha counters up with the server ledger.</summary>
+        public void ApplyServerBalances(int tickets, int pulls, int pity)
+        {
+            _s.RecruitTickets = Math.Max(0, tickets);
+            _s.GachaPulls = Math.Max(0, pulls);
+            _s.GachaPity = Math.Max(0, pity);
+        }
+
         private static HeroRarity RollRarity(double roll, double[] rates)
         {
             // Highest rarity first so float rounding never hands out an extra legendary.

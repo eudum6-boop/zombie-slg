@@ -28,6 +28,8 @@ namespace ZombieSLG.Battle
         private ResearchUi _researchUi;
         private RankingUi _rankingUi;
         private RankingService _ranking;
+        private ServerRewardService _rewards;
+        private bool _settling;
         private readonly List<GachaResult> _pullResults = new List<GachaResult>(10);
 
         private Phase _phase = Phase.Day;
@@ -68,6 +70,9 @@ namespace ZombieSLG.Battle
         public void AttachHeroUi(HeroUi heroUi) => _heroUi = heroUi;
         public void AttachArmyUi(ArmyUi armyUi) => _armyUi = armyUi;
         public void AttachResearchUi(ResearchUi researchUi) => _researchUi = researchUi;
+        /// <summary>Night rewards and recruiting go through the Cloud Code module when attached.</summary>
+        public void AttachServerRewards(ServerRewardService rewards) => _rewards = rewards;
+
         public void AttachRanking(RankingService ranking, RankingUi ui)
         {
             _ranking = ranking;
@@ -102,7 +107,7 @@ namespace ZombieSLG.Battle
 
         public void OnNightButton()
         {
-            if (_phase != Phase.Day) return;
+            if (_phase != Phase.Day || _settling) return;
             _ctx.Feedback.Sfx.Play(SfxId.Click, 0f);
             Select(-1);
             CloseModals();
@@ -229,16 +234,32 @@ namespace ZombieSLG.Battle
             _heroUi.OpenRecruit(_base.Heroes);
         }
 
-        public void OnRecruit(int count)
+        private bool _recruiting;
+
+        public async void OnRecruit(int count)
         {
-            var block = _base.Recruit(count, _pullResults);
-            if (block == PullBlock.NotEnoughTickets)
+            if (_recruiting) return;
+            if (_base.State.RecruitTickets < count)
             {
                 _ctx.Feedback.Sfx.Play(SfxId.HeroHurt, 0f);
                 Toast("모집권이 부족합니다 — 밤을 버티면 별 개수만큼 받습니다", UiKit.Bad);
                 return;
             }
-            if (block != PullBlock.None) return;
+
+            if (_rewards != null)
+            {
+                // Server-authoritative: the Cloud Code module rolls the gacha on its own ledger.
+                _recruiting = true;
+                string error = await _rewards.RecruitAsync(count, _pullResults);
+                _recruiting = false;
+                if (error != null)
+                {
+                    _ctx.Feedback.Sfx.Play(SfxId.HeroHurt, 0f);
+                    Toast(error, UiKit.Bad);
+                    return;
+                }
+            }
+            else if (_base.Recruit(count, _pullResults) != PullBlock.None) return;
 
             _heroUi.ShowResults(_pullResults);
             bool legendary = _pullResults.Exists(r => r.Rarity == HeroRarity.Legendary);
@@ -360,20 +381,50 @@ namespace ZombieSLG.Battle
             Select(-1);
         }
 
-        private void OnReturnedToBase(NightOutcome outcome)
+        private async void OnReturnedToBase(NightOutcome outcome)
         {
             int nightBefore = _base.State.Night;
-            _base.ApplyNight(outcome.Victory, outcome.Reward, outcome.Kills, outcome.Dead, outcome.Wounded);
-            if (outcome.Victory && _ranking != null) _ = _ranking.ReportAsync(_base.State.Data.BestNight);
             _phase = Phase.Dawn;
             _transition = 0f;
             _hud.SetVisible(true);
             Select(-1);
-            Toast(outcome.Victory
-                    ? $"NIGHT {nightBefore} 생존! 보상을 창고에 넣었습니다"
-                    : "본부가 무너졌습니다. 보상 일부만 회수했습니다",
-                outcome.Victory ? new Color(1f, 0.85f, 0.4f) : UiKit.Bad);
+
+            var source = SettlementSource.Server;
+            string reason = null;
+            if (_rewards != null)
+            {
+                _settling = true;
+                var s = await _rewards.SettleNightAsync(nightBefore, outcome.Victory, outcome.Kills, outcome.HqHpRatio,
+                    _base.Heroes.ScoutBonus, outcome.Reward, outcome.Dead, outcome.Wounded);
+                _settling = false;
+                source = s.Source;
+                reason = s.Reason;
+                if (s.Source == SettlementSource.Server && !RewardEquals(s.Reward, outcome.Reward))
+                    Debug.Log($"[ZombieSLG] 서버 보상이 화면 표시와 다릅니다: 서버 식량 {s.Reward.Food}/연료 {s.Reward.Fuel}/자재 {s.Reward.Materials}/모집권 {s.Reward.Tickets}");
+            }
+            else _base.ApplyNight(outcome.Victory, outcome.Reward, outcome.Kills, outcome.Dead, outcome.Wounded);
+
+            if (outcome.Victory && _ranking != null) _ = _ranking.ReportAsync(_base.State.Data.BestNight);
+
+            switch (source)
+            {
+                case SettlementSource.Rejected:
+                    Toast("서버가 보상을 거부했습니다: " + reason, UiKit.Bad);
+                    break;
+                case SettlementSource.Offline:
+                    Toast("오프라인 — 자원만 지급되고 모집권은 서버 연결 시에만 받습니다", new Color(1f, 0.8f, 0.4f));
+                    break;
+                default:
+                    Toast(outcome.Victory
+                            ? $"NIGHT {nightBefore} 생존! 보상을 창고에 넣었습니다"
+                            : "본부가 무너졌습니다. 보상 일부만 회수했습니다",
+                        outcome.Victory ? new Color(1f, 0.85f, 0.4f) : UiKit.Bad);
+                    break;
+            }
         }
+
+        private static bool RewardEquals(NightReward a, NightReward b) =>
+            a.Food == b.Food && a.Fuel == b.Fuel && a.Materials == b.Materials && a.Tickets == b.Tickets;
 
         // ------------------------------------------------------------------ input
 
