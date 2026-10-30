@@ -44,13 +44,29 @@ namespace ZombieSLG.Battle
             QualitySettings.vSyncCount = 0;
             WarnIf2DRenderer();
 
-            // All numbers come from the CSV tables (Data/Tables → Resources/GameData.asset).
-            var data = LoadGameData();
-            if (data == null)
+            // Services that don't need game data: clock, local save, cloud connection.
+            // Game clock: server time once synced, device clock while offline (see SyncedClock).
+            var device = new SystemClock();
+            _clock = new SyncedClock(() => device.Now, () => MonotonicClock.Seconds);
+            _localRepo = new LocalSaveRepository();
+            _cloud = new UgsCloudSave();
+            _sync = new CloudSyncService(_cloud, _localRepo, _clock, msg => Debug.Log("[ZombieSLG][클라우드] " + msg));
+            _ranking = new RankingService(new UgsLeaderboard(_cloud), msg => Debug.LogWarning("[ZombieSLG][순위] " + msg));
+
+            // Plain dark screen while connecting (SetupCameraAndLighting reuses this camera later).
+            if (Camera.main == null)
             {
-                enabled = false;
-                return;
+                var camGo = new GameObject("Main Camera") { tag = "MainCamera" };
+                var cam = camGo.AddComponent<Camera>();
+                cam.clearFlags = CameraClearFlags.SolidColor;
+                cam.backgroundColor = new Color(0.05f, 0.06f, 0.08f);
+                camGo.AddComponent<AudioListener>();
             }
+        }
+
+        /// <summary>Builds the world, systems and UI. Runs after the server balance values are known.</summary>
+        private void BuildGame(GameData data)
+        {
             var config = BattleConfig.From(data.Balance);
             config.ZombiePrewarm = _zombiePrewarm;
             config.StressTestCount = _stressTestCount;
@@ -113,17 +129,8 @@ namespace ZombieSLG.Battle
                 onResultButton: battle.OnResultButton);
 
             // Layers: infrastructure → application → presentation.
-            // Game clock: server time once synced, device clock while offline (see SyncedClock).
-            var device = new SystemClock();
-            var clock = new SyncedClock(() => device.Now, () => MonotonicClock.Seconds);
-            _clock = clock;
-            var localRepo = new LocalSaveRepository();
-            _localRepo = localRepo;
-            _baseService = new BaseService(clock, localRepo, new EventBus(), data);
-            _cloud = new UgsCloudSave();
-            _sync = new CloudSyncService(_cloud, localRepo, clock, msg => Debug.Log("[ZombieSLG][클라우드] " + msg));
+            _baseService = new BaseService(_clock, _localRepo, new EventBus(), data);
             _baseService.Saved += _sync.MarkDirty;
-            _ranking = new RankingService(new UgsLeaderboard(_cloud), msg => Debug.LogWarning("[ZombieSLG][순위] " + msg));
             var baseView = new BaseView(ctx);
             _flow = new GameFlow(ctx, _baseService, baseView, battle, input);
             var baseHud = new BaseHud(ctx, baseView, transform,
@@ -153,14 +160,37 @@ namespace ZombieSLG.Battle
         /// </summary>
         private async void Start()
         {
-            if (_flow == null) return;
+            var asset = GameDataAsset.LoadDefault();
+            if (asset == null)
+            {
+                Debug.LogError("[ZombieSLG] GameData가 없습니다. 메뉴 ZombieSLG ▸ 데이터 테이블 가져오기 를 실행하세요.");
+                enabled = false;
+                return;
+            }
             bool skipPull = PlayerPrefs.GetInt(SkipCloudPullKey, 0) == 1;
 
             bool online = await _cloud.ConnectAsync();
-            bool serverTime = online && await _clock.TrySyncAsync(_serverTime);
+            bool serverTime = online && await _clock.TrySyncAsync(_serverTime, 8000);
+            if (online && !serverTime) // first Cloud Code call can be slow right after sign-in; try once more
+                serverTime = await _clock.TrySyncAsync(_serverTime, 8000);
             if (this == null) return;
+
+            // Balance: shipped CSV values, patched by Remote Config (or its cached copy when offline).
+            string overrides = UgsRemoteConfig.Cached;
+            bool freshConfig = false;
+            if (online) (overrides, freshConfig) = await UgsRemoteConfig.FetchBalanceAsync();
+            if (this == null) return;
+            var data = LoadGameData(asset, overrides, out int applied);
+            if (data == null)
+            {
+                enabled = false;
+                return;
+            }
+            if (applied > 0) Debug.Log($"[ZombieSLG] 서버 밸런스 값 {applied}개 적용{(freshConfig ? "" : " (저장된 값)")}");
+            BuildGame(data);
+
             if (online && !serverTime)
-                Debug.LogWarning("[ZombieSLG] 서버 시간을 받지 못했습니다 (Cloud Code 스크립트 'server-time' 확인) — 기기 시계를 사용합니다.");
+                Debug.LogWarning($"[ZombieSLG] 서버 시간을 받지 못했습니다 ({_clock.LastSyncError}) — 기기 시계를 사용합니다.");
             else if (serverTime)
                 Debug.Log($"[ZombieSLG] 서버 시간 사용 (기기 시계 차이 {_clock.DeviceOffset:+0;-0}초)");
 
@@ -217,21 +247,18 @@ namespace ZombieSLG.Battle
 
         private void Update()
         {
-            if (!_started) return;
+            // _flow is null after a script reload during Play (Unity keeps the bool, drops the objects).
+            if (!_started || _flow == null) return;
             _flow.Tick(Time.deltaTime);
             _sync.Tick();
         }
 
-        private static GameData LoadGameData()
+        private static GameData LoadGameData(GameDataAsset asset, string overridesJson, out int applied)
         {
-            var asset = GameDataAsset.LoadDefault();
-            if (asset == null)
-            {
-                Debug.LogError("[ZombieSLG] GameData가 없습니다. 메뉴 ZombieSLG ▸ 데이터 테이블 가져오기 를 실행하세요.");
-                return null;
-            }
             var errors = new List<string>();
-            var data = asset.Build(errors);
+            var warnings = new List<string>();
+            var data = RemoteBalance.Build(asset.Tables, overridesJson, errors, warnings, out applied);
+            foreach (var w in warnings) Debug.LogWarning("[ZombieSLG][서버 밸런스] " + w);
             if (data == null)
             {
                 foreach (var e in errors) Debug.LogError("[ZombieSLG][데이터] " + e);
