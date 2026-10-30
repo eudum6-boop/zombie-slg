@@ -36,7 +36,9 @@ CSV (Data/Tables)  ──저장──▶  에디터 임포터  ──검증 통�
   병종 3개 모두 존재, 연구 갈래·효과 이름, 선행 연구 존재·순환 금지·선행이 더 높은 단계가 아닐 것.
 - 모집 확률을 바꾸면 게임 안의 **확률 보기** 화면도 표에서 바로 계산되어 함께 바뀝니다.
 - 같은 검증이 테스트(`dotnet test tools/DomainTests`)와 CI에서도 돌아서, 잘못된 표는 PR 단계에서 막힙니다.
-- M3에서 Remote Config 값을 `BalanceTable.ApplyOverrides` 로 덮어써서 출시 후 밸런스를 조정합니다.
+- **서버에서 바꾸기 (Remote Config)**: 대시보드 Remote Config에 JSON 키 `balance_overrides` 를 만들고
+  `{"night.hp_per_night": 0.15, "hq.max_hp": 2600}` 처럼 `balance.csv` 의 키와 숫자를 넣으면, 다음 실행부터 모든 플레이어에게 적용됩니다.
+  표 검증(최솟값·최댓값, 확률 합계 등)을 통과하지 못하면 무시하고 CSV 값으로 시작하며, Console에 이유가 나옵니다.
 
 ## 새 수치를 추가할 때 (코드 작업)
 

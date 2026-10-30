@@ -8,7 +8,8 @@
         "Unity.Services.Authentication",
         "Unity.Services.CloudSave",
         "Unity.Services.CloudCode",
-        "Unity.Services.Leaderboards"
+        "Unity.Services.Leaderboards",
+        "Unity.Services.RemoteConfig"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

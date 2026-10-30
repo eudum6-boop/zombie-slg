@@ -35,6 +35,9 @@ namespace ZombieSLG.Application
 
         public bool IsServerTime => _synced;
 
+        /// <summary>Why the last <see cref="TrySyncAsync"/> failed (null after a success).</summary>
+        public string LastSyncError { get; private set; }
+
         /// <summary>Device clock minus game clock, in seconds (positive = device runs ahead).</summary>
         public double DeviceOffset => _wall() - Now;
 
@@ -69,12 +72,18 @@ namespace ZombieSLG.Application
             {
                 var fetch = source.FetchUnixSecondsAsync();
                 var done = await Task.WhenAny(fetch, Task.Delay(timeoutMs));
-                if (done != fetch) return false;
+                if (done != fetch)
+                {
+                    LastSyncError = $"{timeoutMs / 1000.0:0.#}초 안에 응답 없음";
+                    return false;
+                }
                 Sync(await fetch);
+                LastSyncError = null;
                 return true;
             }
-            catch (Exception)
+            catch (Exception e)
             {
+                LastSyncError = e.GetType().Name + ": " + e.Message;
                 return false;
             }
         }
