@@ -9,7 +9,9 @@
         "Unity.Services.CloudSave",
         "Unity.Services.CloudCode",
         "Unity.Services.Leaderboards",
-        "Unity.Services.RemoteConfig"
+        "Unity.Services.RemoteConfig",
+        "Unity.Addressables",
+        "Unity.ResourceManager"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
