@@ -18,7 +18,7 @@ Unity 6 · URP · 모바일 세로 화면 · 1인 개발
 | **M1 기지 경영 루프** | 건물 7종 · 생산/창고 상한/식량 소비/사기 · 생존자 배치 · 건설 대기열 · 오프라인 정산 · 암호화 로컬 세이브 · 낮↔밤 루프 | ✅ |
 | M2 영웅·병력·가챠 | 데이터 파이프라인 · 영웅 8명(등급 4·역할 3·조각 승급·배치 3자리) · 모집(천장·10회 확정·확률 공개) · 병종 3(상성·문별 배치·부상병 치료) · 연구 13개(경제·군사·방어) | ✅ |
 | M3 서버 연동 | ✅ UGS 익명 로그인 · ✅ Cloud Save 동기화(오프라인 우선, 최신 세이브 선택) · ✅ 서버 시간 시계(Cloud Code) · ✅ 순위(가장 오래 버틴 밤) · ✅ Remote Config(서버에서 밸런스 덮어쓰기) · ✅ 서버 권한 보상·모집(Cloud Code C# 모듈) | ✅ |
-| M4 최적화·폴리싱 | Jobs/Burst + GPU 인스턴싱, Addressables, 튜토리얼 | ⏳ |
+| M4 최적화·폴리싱 | 🚧 Jobs/Burst + GPU 인스턴싱 좀비(기준선과 전환 비교) · ⏳ Addressables · ⏳ 튜토리얼 | 🚧 |
 | M5 출시 | IAP·광고 테스트 연동, 구글 플레이 출시 | ⏳ |
 
 ## 실행
@@ -61,7 +61,7 @@ flowchart LR
 ### 기술 포인트
 
 - **플로우 필드** — 목표(본부)가 하나라서 Dijkstra 한 번으로 모든 좀비가 같은 방향장을 공유합니다. 대각선 모서리 통과 금지, 도달 불가 셀 처리.
-- **대량 유닛** — M0 기준선은 GameObject + 풀링 + 공간 해시(이웃 탐색 O(n)). M4에서 Jobs/Burst + GPU 인스턴싱으로 바꾸고 전후 프로파일을 비교합니다.
+- **대량 유닛** — 좀비 시스템을 `IZombieSystem` 뒤에 두 구현으로 나눴습니다. M0 기준선(`ZombieManager`: GameObject + 풀링 + 공간 해시)과 M4(`ZombieSystemJobs`: 카운팅 정렬 격자 + 병렬 조향을 Burst 잡으로, 그리기는 `Graphics.RenderMeshInstanced` GPU 인스턴싱, GameObject 0개). `BattleBootstrap ▸ Zombie Mode`로 바꿔 같은 밤에서 비교합니다. 좀비 800마리 기준 **150–200 → 350–400 FPS**(에디터, 프레임 제한 해제) → [docs/PERF.md](docs/PERF.md)
 - **결정적 웨이브** — 시드 기반 `WaveDirector`. 같은 밤은 항상 같은 스폰 → 재현·테스트·서버 검증이 가능합니다.
 - **오프라인 정산** — 건설 완료 시점에서 시간 구간을 나눠 정산합니다. "한 번에 2시간 점프"와 "1초씩 7200번"의 결과가 같은지 테스트로 보장합니다.
 - **데이터 드리븐** — 수치 100% CSV(`Data/Tables`). 저장하면 에디터 임포터가 검증 후 ScriptableObject로 가져오고, 오류는 `파일:줄 [열]`로 표시합니다. 규칙 객체(`GameData`)를 주입받는 구조라 테스트·서버·Remote Config가 같은 규칙을 씁니다. → [docs/DATA_TABLES.md](docs/DATA_TABLES.md)

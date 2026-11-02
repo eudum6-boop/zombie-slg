@@ -395,7 +395,8 @@ namespace ZombieSLG.Battle
             _hqFill.color = recentlyHit ? Color.white : HqColor;
             _hqText.text = "본부  " + Mathf.CeilToInt(hq.Hp) + " / " + Mathf.CeilToInt(hq.MaxHp);
 
-            _debugText.text = string.Format("FPS {0:0}  ({1:0.0} ms)\n좀비 {2}  /  활성 {3}", _fps, _frameMs, zombies.AliveCount, zombies.ActiveCount);
+            _debugText.text = string.Format("FPS {0:0}  ({1:0.0} ms)\n좀비 {2}  /  활성 {3}\n{4}  {5:0.00} ms",
+                _fps, _frameMs, zombies.AliveCount, zombies.ActiveCount, zombies.Mode, zombies.LastTickMs);
             _debugText.color = _fps >= 55f ? new Color(0.7f, 1f, 0.7f, 0.9f) : new Color(1f, 0.6f, 0.5f, 0.95f);
 
             // Hero bar follows the hero.

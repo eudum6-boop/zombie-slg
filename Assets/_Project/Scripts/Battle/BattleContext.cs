@@ -13,7 +13,7 @@ namespace ZombieSLG.Battle
         public MaterialLibrary Materials;
         public CameraRig CameraRig;
         public Feedback Feedback;
-        public ZombieManager Zombies;
+        public IZombieSystem Zombies;
         public HeroController Hero;
         public HeadquartersView Hq;
         public FirebombSkill Skill;

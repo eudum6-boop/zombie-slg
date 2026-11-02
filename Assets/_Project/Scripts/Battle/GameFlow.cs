@@ -252,6 +252,10 @@ namespace ZombieSLG.Battle
                 _recruiting = true;
                 string error = await _rewards.RecruitAsync(count, _pullResults);
                 _recruiting = false;
+                if (error == null)
+                    Debug.Log($"[ZombieSLG] 서버 모집 {count}회: " +
+                              string.Join(", ", _pullResults.ConvertAll(r => $"{r.HeroId}({r.Rarity}{(r.IsNew ? ", 신규" : $", 조각+{r.ShardsGained}")})")) +
+                              $" → 남은 모집권 {_base.State.RecruitTickets}장");
                 if (error != null)
                 {
                     _ctx.Feedback.Sfx.Play(SfxId.HeroHurt, 0f);
@@ -399,6 +403,8 @@ namespace ZombieSLG.Battle
                 _settling = false;
                 source = s.Source;
                 reason = s.Reason;
+                Debug.Log($"[ZombieSLG] 밤 보상 정산 ({s.Source}) NIGHT {nightBefore}: 식량 {s.Reward.Food} / 연료 {s.Reward.Fuel} / 자재 {s.Reward.Materials} / 모집권 +{s.Reward.Tickets} → 보유 {_base.State.RecruitTickets}장" +
+                          (s.Reason != null ? $" (사유: {s.Reason})" : ""));
                 if (s.Source == SettlementSource.Server && !RewardEquals(s.Reward, outcome.Reward))
                     Debug.Log($"[ZombieSLG] 서버 보상이 화면 표시와 다릅니다: 서버 식량 {s.Reward.Food}/연료 {s.Reward.Fuel}/자재 {s.Reward.Materials}/모집권 {s.Reward.Tickets}");
             }
