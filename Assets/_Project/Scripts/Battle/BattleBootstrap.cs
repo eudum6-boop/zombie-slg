@@ -167,6 +167,7 @@ namespace ZombieSLG.Battle
             _flow.AttachResearchUi(new ResearchUi(ctx, baseHud.Root, onStart: _flow.OnResearch));
             _flow.AttachRanking(_ranking, new RankingUi(baseHud.Root));
             _flow.AttachServerRewards(_rewards);
+            _flow.AttachTutorialUi(new TutorialUi(transform, onNext: _flow.OnTutorialNext, onSkip: _flow.OnTutorialSkip));
             _baseHud = baseHud;
             baseHud.SetVisible(false); // shown by GameFlow once the save is loaded
         }

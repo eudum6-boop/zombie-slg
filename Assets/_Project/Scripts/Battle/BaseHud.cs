@@ -93,6 +93,13 @@ namespace ZombieSLG.Battle
         private int _selected = -1;
 
         public bool Visible => _canvas.gameObject.activeSelf;
+        public int SelectedPlot => _selected;
+
+        // Tutorial arrow targets.
+        public RectTransform NightButtonRect => (RectTransform)_nightButton.transform;
+        public RectTransform RecruitButtonRect => (RectTransform)_recruitButton.transform;
+        public RectTransform UpgradeButtonRect => (RectTransform)_upgradeButton.transform;
+        public RectTransform WorkerPlusRect => (RectTransform)_workerPlus.transform;
         public RectTransform Root => _root;
 
         public BaseHud(BattleContext ctx, BaseView view, Transform parent,

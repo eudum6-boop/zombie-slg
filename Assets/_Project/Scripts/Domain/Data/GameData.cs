@@ -32,6 +32,12 @@ namespace ZombieSLG.Domain
         }
     }
 
+    public sealed class TutorialNightRules
+    {
+        public WaveSettings Wave = new WaveSettings();
+        public float HqHpMultiplier = 1f;
+    }
+
     public sealed class EconomyRules
     {
         public double StartFood, StartFuel, StartMaterials, StartMorale;
@@ -127,6 +133,8 @@ namespace ZombieSLG.Domain
         public GachaRules Gacha { get; } = new GachaRules();
         public HeroDef StarterHero { get; internal set; }
         public TroopRules Troops { get; } = new TroopRules();
+        /// <summary>Practice night used by the tutorial (walkers only, short, not counted).</summary>
+        public TutorialNightRules TutorialNight { get; } = new TutorialNightRules();
         public ResearchRules Research { get; } = new ResearchRules();
 
         private readonly TroopDef[] _troops = new TroopDef[TroopRules.TypeCount];
@@ -280,6 +288,21 @@ namespace ZombieSLG.Domain
                 hordes.Add(new HordeEvent(h.Time, h.Count));
             }
             w.Hordes = hordes.ToArray();
+
+            // ---- tutorial practice night: a gentle copy of the normal wave ----
+            var tn = data.TutorialNight;
+            var tw = w.Clone();
+            tw.Duration = b.F("tutorial.night_seconds", 10);
+            tw.BaseRate = tw.PeakRate = b.F("tutorial.spawn_rate", 0);
+            tw.RampEnd = tw.Duration;
+            tw.RunnerUnlockTime = tw.BruteUnlockTime = tw.Duration + 1f; // walkers only
+            tw.MaxAlive = b.I("tutorial.max_alive", 1);
+            float hordeTime = b.F("tutorial.horde_time", 0);
+            int hordeCount = b.I("tutorial.horde_count", 0);
+            if (hordeTime >= tw.Duration) errors.Add($"{GameTables.BalanceFile}: tutorial.horde_time은 tutorial.night_seconds보다 작아야 합니다");
+            tw.Hordes = hordeCount > 0 ? new[] { new HordeEvent(hordeTime, hordeCount) } : new HordeEvent[0];
+            tn.Wave = tw;
+            tn.HqHpMultiplier = b.F("tutorial.hq_hp_multiplier", 1);
 
             // ---- buildings ----
             foreach (var r in tables.Buildings)

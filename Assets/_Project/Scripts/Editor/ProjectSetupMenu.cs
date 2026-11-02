@@ -156,6 +156,28 @@ namespace ZombieSLG.EditorTools
             Debug.Log("[ZombieSLG] 세이브를 삭제했습니다. 다음 Play는 새 게임으로 시작하고, 클라우드 세이브도 새 게임으로 덮어씁니다.");
         }
 
+        [MenuItem("ZombieSLG/튜토리얼 다시 보기", priority = 22)]
+        public static void ReplayTutorial()
+        {
+            if (UnityEngine.Application.isPlaying)
+            {
+                EditorUtility.DisplayDialog("ZombieSLG", "플레이를 멈춘 뒤에 실행하세요.", "확인");
+                return;
+            }
+            var repo = new LocalSaveRepository();
+            var save = repo.Load();
+            if (save == null)
+            {
+                Debug.Log("[ZombieSLG] 세이브가 없습니다. 다음 Play가 새 게임이라 튜토리얼이 바로 나옵니다.");
+                return;
+            }
+            // Keeps all progress (and the server ledger in sync); only the guide restarts.
+            save.TutorialStep = 0;
+            save.TutorialDone = false;
+            repo.Save(save);
+            Debug.Log("[ZombieSLG] 튜토리얼을 처음부터 다시 보여줍니다. Play를 누르세요.");
+        }
+
         [MenuItem("ZombieSLG/세이브 폴더 열기", priority = 21)]
         public static void OpenSaveFolder()
         {
