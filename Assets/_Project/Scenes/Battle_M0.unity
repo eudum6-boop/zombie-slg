@@ -148,6 +148,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cfbe18155c4a870489213c343228e189, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  _zombieMode: 0
   _zombiePrewarm: 300
   _stressTestCount: 200
   _showFlowFieldGizmos: 0
