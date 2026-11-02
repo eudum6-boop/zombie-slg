@@ -10,13 +10,15 @@ using ZombieSLG.Infrastructure;
 namespace ZombieSLG.EditorTools
 {
     /// <summary>
-    /// CSV → ScriptableObject pipeline. Saving any table under Data/Tables re-imports automatically;
+    /// CSV → ScriptableObject (Addressables) pipeline. Saving any table under Data/Tables re-imports automatically;
     /// invalid tables are reported as file:line errors and the last good GameData is kept.
     /// </summary>
     public sealed class GameDataImporter : AssetPostprocessor
     {
         public const string TablesDir = "Assets/_Project/Data/Tables";
-        public const string AssetPath = "Assets/_Project/Resources/GameData.asset";
+        public const string AssetPath = "Assets/_Project/Data/GameData.asset";
+        /// <summary>Pre-M4 location (Resources). Removed after the Addressables copy exists.</summary>
+        public const string LegacyAssetPath = "Assets/_Project/Resources/GameData.asset";
 
         private static bool _queued;
 
@@ -77,6 +79,13 @@ namespace ZombieSLG.EditorTools
             asset.ImportedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
             EditorUtility.SetDirty(asset);
             AssetDatabase.SaveAssets();
+
+            AddressablesSetup.EnsureEntry(AssetPath, GameDataAsset.Address);
+            if (File.Exists(LegacyAssetPath))
+            {
+                AssetDatabase.DeleteAsset(LegacyAssetPath);
+                Debug.Log("[ZombieSLG] Resources/GameData.asset 를 지웠습니다 (이제 Addressables로 불러옵니다).");
+            }
 
             Debug.Log($"[ZombieSLG] 데이터 테이블 가져오기 완료 — 좀비 {tables.Zombies.Count}, 건물 {tables.Buildings.Count}, " +
                       $"대규모 습격 {tables.Hordes.Count}, 영웅 {tables.Heroes.Count}, 병종 {tables.Troops.Count}, 연구 {tables.Research.Count}, 수치 {tables.Balance.Count}개");

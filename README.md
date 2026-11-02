@@ -18,7 +18,7 @@ Unity 6 · URP · 모바일 세로 화면 · 1인 개발
 | **M1 기지 경영 루프** | 건물 7종 · 생산/창고 상한/식량 소비/사기 · 생존자 배치 · 건설 대기열 · 오프라인 정산 · 암호화 로컬 세이브 · 낮↔밤 루프 | ✅ |
 | M2 영웅·병력·가챠 | 데이터 파이프라인 · 영웅 8명(등급 4·역할 3·조각 승급·배치 3자리) · 모집(천장·10회 확정·확률 공개) · 병종 3(상성·문별 배치·부상병 치료) · 연구 13개(경제·군사·방어) | ✅ |
 | M3 서버 연동 | ✅ UGS 익명 로그인 · ✅ Cloud Save 동기화(오프라인 우선, 최신 세이브 선택) · ✅ 서버 시간 시계(Cloud Code) · ✅ 순위(가장 오래 버틴 밤) · ✅ Remote Config(서버에서 밸런스 덮어쓰기) · ✅ 서버 권한 보상·모집(Cloud Code C# 모듈) | ✅ |
-| M4 최적화·폴리싱 | ✅ Jobs/Burst + GPU 인스턴싱 좀비(기준선과 전환 비교) · ✅ 튜토리얼(9단계 코치, 기존 플레이어 자동 건너뜀) · ⏳ Addressables | 🚧 |
+| M4 최적화·폴리싱 | ✅ Jobs/Burst + GPU 인스턴싱 좀비(기준선과 전환 비교) · ✅ 튜토리얼(9단계 코치, 기존 플레이어 자동 건너뜀) · ✅ Addressables(데이터 로딩, 에디터 메뉴로 그룹·빌드 자동화) | ✅ |
 | M5 출시 | IAP·광고 테스트 연동, 구글 플레이 출시 | ⏳ |
 
 ## 실행
@@ -72,6 +72,7 @@ flowchart LR
 - **서버 시간** — 시작할 때 Cloud Code 스크립트(`CloudCode/server-time.js`)에서 서버 시각을 받고, 이후엔 단조 타이머로 흐른 시간만 더합니다. 플레이 중 기기 시계를 바꿔도 건설·연구·훈련이 빨라지지 않고, 오프라인에서 시계를 앞당겨 생긴 "미래 세이브"는 다음 접속 때 서버 시각으로 되돌립니다.
 - **Remote Config 밸런스** — 대시보드의 `balance_overrides`(JSON: `{"balance.csv 키": 숫자}`)를 받아 표 행에 덮어쓴 뒤 `GameData`를 만듭니다. 빌더 검증을 그대로 통과해야 적용되고, 잘못된 값이면 기본 CSV로 시작합니다. 마지막 값은 기기에 저장돼 오프라인에서도 적용됩니다.
 - **서버 권한 보상** — Cloud Code C# 모듈(`ZombieServer/`)이 클라이언트와 **같은 Domain 코드와 CSV**를 컴파일해 밤 보상과 모집(가챠)을 서버에서 계산합니다. 모집권·가챠 상태는 Cloud Save의 Protected 영역(서버만 쓰기 가능)에 두고, 같은 밤 중복 청구·너무 빠른 승리·스폰 수를 넘는 처치 수·과장된 정찰 보너스를 거절/보정합니다. 규칙(`ServerRules`)은 Unity 없이 단위 테스트합니다.
+- **Addressables** — 게임 데이터(`GameData.asset`)를 `Resources` 대신 Addressables 주소 `"GameData"`로 비동기 로드합니다. 임포터가 그룹·주소 등록을 코드로 맞추고(`AddressablesSetup`), 메뉴 `ZombieSLG ▸ Addressables 콘텐츠 빌드`로 번들을 만듭니다. 이후 영웅·이벤트 콘텐츠를 원격 카탈로그로 내려받는 구조로 확장할 수 있습니다.
 - **세이브 버전 관리** — `GameSave.Version`(현재 v3) + `SaveMigrator`. 새 건물·병력·연구가 추가돼도 기존 세이브가 자동 변환됩니다.
 
 ## 테스트
@@ -93,7 +94,7 @@ Assets/_Project/
     Battle/          프레젠테이션 (전투 + 기지)
     Editor/          설정 메뉴
   Data/Tables/       밸런스 CSV (zombies · buildings · hordes · heroes · troops · research · balance)
-  Resources/         GameData.asset (CSV에서 자동 생성)
+  Data/GameData.asset  CSV에서 자동 생성, Addressables 그룹 "GameData"
   Tests/EditMode/    단위 테스트
 tools/DomainTests/   .NET 테스트 프로젝트 (CI용)
 ZombieServer/        Cloud Code C# 모듈 (Domain 코드 + CSV를 서버에서 재사용)

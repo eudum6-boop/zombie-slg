@@ -178,7 +178,9 @@ namespace ZombieSLG.Battle
         /// </summary>
         private async void Start()
         {
-            var asset = GameDataAsset.LoadDefault();
+            var asset = await GameDataAsset.LoadAsync();
+            if (this == null) return;
+            if (asset != null) Debug.Log($"[ZombieSLG] GameData 불러옴 ({GameDataAsset.LoadedFrom}, 가져온 시각 {asset.ImportedAt})");
             if (asset == null)
             {
                 Debug.LogError("[ZombieSLG] GameData가 없습니다. 메뉴 ZombieSLG ▸ 데이터 테이블 가져오기 를 실행하세요.");
@@ -324,6 +326,7 @@ namespace ZombieSLG.Battle
 
         private void OnDestroy()
         {
+            GameDataAsset.Unload();
             (_ctx?.Zombies as System.IDisposable)?.Dispose(); // native buffers of the Jobs horde
         }
 

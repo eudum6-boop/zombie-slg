@@ -25,7 +25,7 @@
 ## 흐름
 
 ```
-CSV (Data/Tables)  ──저장──▶  에디터 임포터  ──검증 통과──▶  Resources/GameData.asset  ──▶  GameData (런타임)
+CSV (Data/Tables)  ──저장──▶  에디터 임포터  ──검증 통과──▶  Data/GameData.asset (Addressables "GameData")  ──▶  GameData (런타임)
                                     │
                                     └─ 오류면 Console에 "파일:줄 [열]" 로 표시하고 이전 데이터를 그대로 사용
 ```
