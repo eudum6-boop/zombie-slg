@@ -72,6 +72,9 @@ namespace ZombieSLG.Battle
         private readonly List<DamageNumber> _numbers = new List<DamageNumber>();
         private int _numberCursor;
 
+        /// <summary>Tutorial arrow target.</summary>
+        public RectTransform SkillButtonRect => _skillBg.rectTransform;
+
         public BattleHud(BattleContext ctx, Transform parent, Action onStart, Action onSkill, Action onStress, Action onResultButton)
         {
             _ctx = ctx;

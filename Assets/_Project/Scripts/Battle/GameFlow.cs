@@ -29,6 +29,10 @@ namespace ZombieSLG.Battle
         private RankingUi _rankingUi;
         private RankingService _ranking;
         private ServerRewardService _rewards;
+        private Tutorial _tutorial;
+        /// <summary>The night about to start is the tutorial's practice night.</summary>
+        private bool _practiceNight;
+        private TutorialUi _tutorialUi;
         private bool _settling;
         private readonly List<GachaResult> _pullResults = new List<GachaResult>(10);
 
@@ -63,6 +67,10 @@ namespace ZombieSLG.Battle
             }));
 
             _battle.ReturnedToBase += OnReturnedToBase;
+            _battle.HeroCommanded += () => Tut(TutorialSignal.HeroMoved);
+            _battle.SkillCast += () => Tut(TutorialSignal.SkillCast);
+            // Battle inputs are held back silently (the coach panel already says what to do).
+            _battle.InputGate = action => _tutorial == null || _tutorial.Allows(action);
         }
 
         /// <summary>Must be set before <see cref="Start"/>; the HUD needs the flow for its callbacks.</summary>
@@ -70,6 +78,8 @@ namespace ZombieSLG.Battle
         public void AttachHeroUi(HeroUi heroUi) => _heroUi = heroUi;
         public void AttachArmyUi(ArmyUi armyUi) => _armyUi = armyUi;
         public void AttachResearchUi(ResearchUi researchUi) => _researchUi = researchUi;
+        public void AttachTutorialUi(TutorialUi ui) => _tutorialUi = ui;
+
         /// <summary>Night rewards and recruiting go through the Cloud Code module when attached.</summary>
         public void AttachServerRewards(ServerRewardService rewards) => _rewards = rewards;
 
@@ -94,6 +104,8 @@ namespace ZombieSLG.Battle
         public void Start()
         {
             _base.Load();
+            _tutorial = new Tutorial(_base.State.Data);
+            _tutorial.OnSessionStart();
             EnterDay();
             SkyLighting.DayNight(_ctx.Sun, _ctx.CameraRig.Camera, 0f);
             if (_pendingOffline.HasValue)
@@ -108,6 +120,9 @@ namespace ZombieSLG.Battle
         public void OnNightButton()
         {
             if (_phase != Phase.Day || _settling) return;
+            if (!Gate(TutorialAction.StartNight)) return;
+            _practiceNight = _tutorial != null && _tutorial.IsActive && _tutorial.Step == TutorialStep.StartNight;
+            Tut(TutorialSignal.NightStarted);
             _ctx.Feedback.Sfx.Play(SfxId.Click, 0f);
             Select(-1);
             CloseModals();
@@ -118,7 +133,9 @@ namespace ZombieSLG.Battle
 
         public void OnUpgrade(int id)
         {
+            if (!Gate(TutorialAction.Upgrade, id)) return;
             var result = _base.TryUpgrade(id);
+            if (result == UpgradeBlock.None) Tut(TutorialSignal.UpgradeStarted);
             if (result != UpgradeBlock.None)
             {
                 _ctx.Feedback.Sfx.Play(SfxId.HeroHurt, 0f);
@@ -128,16 +145,23 @@ namespace ZombieSLG.Battle
 
         public void OnWorkers(int id, int delta)
         {
-            if (_base.ChangeWorkers(id, delta)) _ctx.Feedback.Sfx.Play(SfxId.Click, 0f);
+            if (!Gate(TutorialAction.ChangeWorkers, id)) return;
+            if (!_base.ChangeWorkers(id, delta)) return;
+            _ctx.Feedback.Sfx.Play(SfxId.Click, 0f);
+            if (delta > 0) Tut(TutorialSignal.WorkersChanged);
         }
 
-        public void OnClosePanel() => Select(-1);
+        public void OnClosePanel()
+        {
+            if (Gate(TutorialAction.ClosePanel)) Select(-1);
+        }
 
         // ---- ranking ----
 
         public async void OnRankingButton()
         {
             if (_phase != Phase.Day || _rankingUi == null) return;
+            if (!Gate(TutorialAction.OpenRanking)) return;
             _ctx.Feedback.Sfx.Play(SfxId.Click, 0f);
             Select(-1);
             CloseModals();
@@ -156,6 +180,7 @@ namespace ZombieSLG.Battle
         public void OnBuildingAction(int id)
         {
             if (_phase != Phase.Day) return;
+            if (!Gate(TutorialAction.BuildingAction, id)) return;
             _ctx.Feedback.Sfx.Play(SfxId.Click, 0f);
             var type = BaseView.TypeOf(id);
             Select(-1);
@@ -219,6 +244,7 @@ namespace ZombieSLG.Battle
         public void OnHeroesButton()
         {
             if (_phase != Phase.Day) return;
+            if (!Gate(TutorialAction.OpenHeroes)) return;
             _ctx.Feedback.Sfx.Play(SfxId.Click, 0f);
             Select(-1);
             CloseModals();
@@ -228,6 +254,7 @@ namespace ZombieSLG.Battle
         public void OnRecruitButton()
         {
             if (_phase != Phase.Day) return;
+            if (!Gate(TutorialAction.OpenRecruit)) return;
             _ctx.Feedback.Sfx.Play(SfxId.Click, 0f);
             Select(-1);
             CloseModals();
@@ -239,6 +266,7 @@ namespace ZombieSLG.Battle
         public async void OnRecruit(int count)
         {
             if (_recruiting) return;
+            if (!Gate(TutorialAction.Recruit)) return;
             if (_base.State.RecruitTickets < count)
             {
                 _ctx.Feedback.Sfx.Play(SfxId.HeroHurt, 0f);
@@ -266,6 +294,7 @@ namespace ZombieSLG.Battle
             else if (_base.Recruit(count, _pullResults) != PullBlock.None) return;
 
             _heroUi.ShowResults(_pullResults);
+            Tut(TutorialSignal.Recruited);
             bool legendary = _pullResults.Exists(r => r.Rarity == HeroRarity.Legendary);
             bool epic = _pullResults.Exists(r => r.Rarity == HeroRarity.Epic);
             if (legendary)
@@ -310,7 +339,7 @@ namespace ZombieSLG.Battle
             return new NightSetup(state.Night, state.HqLevel, state.LevelOf(BasePlots.Clinic),
                 new[] { state.LevelOf(BasePlots.TowerA), state.LevelOf(BasePlots.TowerB) },
                 leader.Name, heroes.CombatStats(leader.Id), HeroUi.ParseHex(leader.ColorHex, new Color(0.2f, 0.42f, 0.78f)),
-                heroes.ScoutBonus, army);
+                heroes.ScoutBonus, army, practice: _practiceNight);
         }
 
         // ------------------------------------------------------------------ frame
@@ -368,7 +397,165 @@ namespace ZombieSLG.Battle
                     break;
             }
 
+            TickTutorial();
             _ctx.Feedback.Tick();
+        }
+
+        // ------------------------------------------------------------------ tutorial
+
+        public void OnTutorialNext() => Tut(TutorialSignal.Next);
+
+        private float _lastNudge = -10f;
+
+        /// <summary>
+        /// True if the tutorial lets this input through. Otherwise nudges the player toward the arrow
+        /// (at most once a second) and returns false.
+        /// </summary>
+        private bool Gate(TutorialAction action, int plotId = -1)
+        {
+            if (_tutorial == null || _tutorial.Allows(action, plotId)) return true;
+            if (Time.unscaledTime - _lastNudge > 1f)
+            {
+                _lastNudge = Time.unscaledTime;
+                _ctx.Feedback.Sfx.Play(SfxId.HeroHurt, 0f);
+                Toast("튜토리얼 중이에요 — 화살표가 가리키는 곳을 눌러 주세요", new Color(1f, 0.8f, 0.4f));
+            }
+            return false;
+        }
+
+        public void OnTutorialSkip() => Tut(TutorialSignal.Skip);
+
+        private void Tut(TutorialSignal signal, int plotId = -1)
+        {
+            if (_tutorial == null || !_tutorial.IsActive) return;
+            if (!_tutorial.Signal(signal, plotId)) return;
+            _base.Save();
+            if (_tutorial.IsActive)
+            {
+                _ctx.Feedback.Sfx.Play(SfxId.Click, 0f);
+                return;
+            }
+            _tutorialUi?.Hide();
+            if (signal == TutorialSignal.Skip) Toast("튜토리얼을 건너뛰었습니다", UiKit.Muted);
+            else
+            {
+                _ctx.Feedback.Sfx.Play(SfxId.Victory, 0f);
+                Toast("튜토리얼 완료! 이제 기지를 마음껏 키워 보세요", new Color(1f, 0.85f, 0.4f));
+            }
+        }
+
+        private void TickTutorial()
+        {
+            if (_tutorialUi == null) return;
+            if (_tutorial == null || !_tutorial.IsActive)
+            {
+                _tutorialUi.Hide();
+                return;
+            }
+
+            var step = _tutorial.Step;
+            bool battleStep = Tutorial.IsBattleStep(step);
+            bool show = battleStep ? _phase == Phase.Night : _phase == Phase.Day && !ModalOpen && !_settling;
+            if (!show)
+            {
+                _tutorialUi.Hide();
+                return;
+            }
+
+            string text;
+            string next = null;
+            var target = TutorialUi.Target.None;
+            int selected = _hud != null ? _hud.SelectedPlot : -1;
+            Vector3 hqTop = MapLayout.PlotCenter(BasePlots.Headquarters) + Vector3.up * 4.8f;
+            Vector3 farmTop = MapLayout.PlotCenter(BasePlots.Farm) + Vector3.up * 2.6f;
+
+            switch (step)
+            {
+                case TutorialStep.Welcome:
+                    text = "좀비가 밤마다 몰려옵니다.\n낮에는 기지를 키우고, 밤에는 본부를 지켜야 해요.";
+                    next = "다음";
+                    break;
+                case TutorialStep.SelectHq:
+                    text = "먼저 기지 한가운데의 <b>본부</b>를 탭해 보세요.";
+                    target = TutorialUi.Target.At(hqTop);
+                    break;
+                case TutorialStep.UpgradeHq:
+                {
+                    var block = _base.State.CanUpgrade(BasePlots.Headquarters);
+                    var hqSave = _base.State.Get(BasePlots.Headquarters);
+                    if (block != UpgradeBlock.None || (hqSave != null && hqSave.Upgrading))
+                    {
+                        // Existing saves (tutorial replay) may not be able to upgrade right now: explain and move on.
+                        string why = hqSave != null && hqSave.Upgrading ? "본부가 이미 공사 중이에요."
+                            : block == UpgradeBlock.NotEnoughResources ? "지금은 자원이 부족해서 올릴 수 없어요."
+                            : block == UpgradeBlock.QueueBusy ? "다른 건물이 공사 중이라 지금은 올릴 수 없어요."
+                            : block == UpgradeBlock.MaxLevel ? "본부가 이미 최대 레벨이에요."
+                            : "지금은 본부를 올릴 수 없어요.";
+                        text = $"본부를 올리면 창고가 커지고 다른 건물도 더 높이 올릴 수 있어요.\n{why} 자원이 모이면 같은 방법으로 올리면 돼요.";
+                        next = "다음";
+                        if (selected == BasePlots.Headquarters) target = TutorialUi.Target.At(_hud.UpgradeButtonRect);
+                    }
+                    else if (selected == BasePlots.Headquarters)
+                    {
+                        text = "본부를 올리면 창고가 커지고 다른 건물도 더 높이 올릴 수 있어요.\n<b>업그레이드</b>를 누르세요.";
+                        target = TutorialUi.Target.At(_hud.UpgradeButtonRect);
+                    }
+                    else
+                    {
+                        text = "본부를 다시 탭해서 건물 정보를 여세요.";
+                        target = TutorialUi.Target.At(hqTop);
+                    }
+                    break;
+                }
+                case TutorialStep.AssignWorker:
+                    if (_base.State.IdleSurvivors <= 0)
+                    {
+                        text = "생존자를 일터에 보내면 생산이 늘어요. 지금은 쉬는 생존자가 없네요.\n새 생존자가 오면 건물을 탭하고 <b>+</b>로 배치하세요.";
+                    }
+                    else if (selected == BasePlots.Farm)
+                    {
+                        text = "놀고 있는 생존자를 일터에 보내면 생산이 늘어요.\n<b>+</b> 를 눌러 한 명 배치하세요.";
+                        target = TutorialUi.Target.At(_hud.WorkerPlusRect);
+                    }
+                    else
+                    {
+                        text = "생존자를 일터에 보내 볼까요? <b>농장</b>을 탭하세요.";
+                        target = TutorialUi.Target.At(farmTop);
+                    }
+                    next = "나중에";
+                    break;
+                case TutorialStep.StartNight:
+                    if (selected >= 0)
+                    {
+                        text = "준비가 끝났어요. 오른쪽 위 <b>✕</b>로 건물 창을 닫으세요.";
+                    }
+                    else
+                    {
+                        text = "이번 밤은 <b>연습 습격</b>이에요. 짧고 쉬우며 진행·보상에 포함되지 않아요.\n<b>밤 맞이하기</b>를 눌러 보세요!";
+                        target = TutorialUi.Target.At(_hud.NightButtonRect);
+                    }
+                    break;
+                case TutorialStep.MoveHero:
+                    text = "땅을 <b>탭하거나 끌어서</b> 영웅을 움직이세요. 사격은 자동이에요.";
+                    target = TutorialUi.Target.At(_ctx.Hero.Position + Vector3.up * 2.8f);
+                    break;
+                case TutorialStep.CastSkill:
+                    text = "<b>화염 폭격</b> 버튼을 누른 뒤 좀비가 모인 곳을 탭하세요.";
+                    target = TutorialUi.Target.At(_ctx.Hud.SkillButtonRect);
+                    break;
+                case TutorialStep.SurviveNight:
+                    text = "연습 습격이에요. 1분만 버티면 끝나요! 문 앞의 병력과 포탑도 함께 싸워요.";
+                    break;
+                default: // Recruit
+                    text = _base.State.RecruitTickets > 0
+                        ? "밤을 버티면 모집권을 받아요. <b>모집</b>에서 새 영웅을 데려오세요."
+                        : "밤을 버티면 별 개수만큼 모집권을 받아요. 모집권이 생기면 <b>모집</b>에서 영웅을 데려오세요.";
+                    target = TutorialUi.Target.At(_hud.RecruitButtonRect);
+                    next = "완료";
+                    break;
+            }
+
+            _tutorialUi.Show(step, text, next, target, _ctx.CameraRig.Camera, Time.unscaledDeltaTime);
         }
 
         private void EnterDay()
@@ -393,6 +580,20 @@ namespace ZombieSLG.Battle
             _hud.SetVisible(true);
             Select(-1);
 
+            if (outcome.Practice)
+            {
+                // Tutorial practice night: no settlement, no night advance, no casualties, no ranking.
+                _practiceNight = false;
+                Tut(TutorialSignal.NightEnded);
+                if (_tutorial != null && _tutorial.IsActive)
+                {
+                    _tutorial.OnReturnedToBase();
+                    _base.Save();
+                }
+                Toast("연습 습격 완료! 진짜 밤은 '밤 맞이하기'로 시작돼요", new Color(1f, 0.85f, 0.4f));
+                return;
+            }
+
             var source = SettlementSource.Server;
             string reason = null;
             if (_rewards != null)
@@ -411,6 +612,12 @@ namespace ZombieSLG.Battle
             else _base.ApplyNight(outcome.Victory, outcome.Reward, outcome.Kills, outcome.Dead, outcome.Wounded);
 
             if (outcome.Victory && _ranking != null) _ = _ranking.ReportAsync(_base.State.Data.BestNight);
+            Tut(TutorialSignal.NightEnded);
+            if (_tutorial != null && _tutorial.IsActive)
+            {
+                _tutorial.OnReturnedToBase();
+                _base.Save();
+            }
 
             switch (source)
             {
@@ -441,8 +648,10 @@ namespace ZombieSLG.Battle
 
             int id = MapLayout.PlotAt(ground);
             if (id == _selected) return;
+            if (!Gate(id >= 0 ? TutorialAction.SelectPlot : TutorialAction.ClosePanel, id)) return;
             Select(id);
             if (id >= 0) _ctx.Feedback.Sfx.Play(SfxId.Click, 0f);
+            if (id >= 0) Tut(TutorialSignal.PlotSelected, id);
         }
 
         private void Select(int id)

@@ -31,10 +31,14 @@ namespace ZombieSLG.Battle
         public readonly Color LeaderColor;
         public readonly double ScoutBonus;
         public readonly NightArmy Army;
+        /// <summary>Tutorial practice night: short, walkers only, not counted (no progress, rewards or losses).</summary>
+        public readonly bool Practice;
 
         public NightSetup(int night, int hqLevel, int clinicLevel, int[] towerLevels,
-            string leaderName, HeroCombatStats leaderStats, Color leaderColor, double scoutBonus, NightArmy army)
+            string leaderName, HeroCombatStats leaderStats, Color leaderColor, double scoutBonus, NightArmy army,
+            bool practice = false)
         {
+            Practice = practice;
             Army = army ?? new NightArmy();
             Night = night;
             HqLevel = hqLevel;
@@ -56,9 +60,12 @@ namespace ZombieSLG.Battle
         /// <summary>Per TroopType. Fallen troops are either dead or wounded (heal them at the clinic).</summary>
         public readonly int[] Dead;
         public readonly int[] Wounded;
+        public readonly bool Practice;
 
-        public NightOutcome(bool victory, NightReward reward, int kills, float hqHpRatio, int[] dead, int[] wounded)
+        public NightOutcome(bool victory, NightReward reward, int kills, float hqHpRatio, int[] dead, int[] wounded,
+            bool practice = false)
         {
+            Practice = practice;
             Dead = dead;
             Wounded = wounded;
             Victory = victory;
@@ -79,6 +86,10 @@ namespace ZombieSLG.Battle
 
         private readonly BattleContext _ctx;
         private readonly WaveSettings _waveSettings;
+        private WaveSettings _activeWave;
+        private bool _practice;
+        /// <summary>Night number used for zombie HP scaling (1 on the practice night).</summary>
+        private int _hpNight = 1;
         private readonly List<SpawnRequest> _spawns = new List<SpawnRequest>(128);
         private readonly PointerInput _input;
 
@@ -91,11 +102,21 @@ namespace ZombieSLG.Battle
         private int _lastHordeWarned = -1;
         private double _scoutBonus;
 
+        /// <summary>Tutorial input filter (null = everything allowed).</summary>
+        public Func<TutorialAction, bool> InputGate;
+
+        private bool Allowed(TutorialAction action) => InputGate == null || InputGate(action);
+
+        /// <summary>Tutorial hooks.</summary>
+        public event Action HeroCommanded;
+        public event Action SkillCast;
+
         /// <summary>Raised when the player leaves the result screen.</summary>
         public event Action<NightOutcome> ReturnedToBase;
 
         public bool IsActive => _phase != Phase.Idle;
-        public float Remaining => _director?.Remaining ?? _waveSettings.Duration;
+        public float Remaining => _director?.Remaining ?? (_activeWave ?? _waveSettings).Duration;
+        public bool IsPractice => _practice;
         public int Night => _night;
 
         public BattleController(BattleContext ctx, PointerInput input)
@@ -116,6 +137,9 @@ namespace ZombieSLG.Battle
         {
             var ctx = _ctx;
             _night = Mathf.Max(1, setup.Night);
+            _practice = setup.Practice;
+            _activeWave = _practice ? ctx.Data.TutorialNight.Wave : _waveSettings;
+            _hpNight = _practice ? 1 : _night;
 
             ctx.Feedback.ResetTime();
             ctx.Zombies.DespawnAll();
@@ -124,7 +148,8 @@ namespace ZombieSLG.Battle
             ctx.Hq.SetLevel(setup.HqLevel);
             var defense = ctx.Data.Defense;
             var army = setup.Army;
-            ctx.Hq.ResetState(ctx.Config.HqMaxHp * defense.HqHpMultiplier(setup.HqLevel) * army.HqHp);
+            float practiceHp = _practice ? ctx.Data.TutorialNight.HqHpMultiplier : 1f;
+            ctx.Hq.ResetState(ctx.Config.HqMaxHp * defense.HqHpMultiplier(setup.HqLevel) * army.HqHp * practiceHp);
             ctx.Hero.DamageMultiplier = army.HeroDamage;
             ctx.Hero.SkillMultiplier = army.SkillDamage;
             ctx.Hero.RegenMultiplier = defense.HeroRegenMultiplier(setup.ClinicLevel);
@@ -143,14 +168,14 @@ namespace ZombieSLG.Battle
 
             DeploySquads(army);
 
-            _director = new WaveDirector(_waveSettings, ctx.Data.Night, _night, _night * 7919 + 17);
+            _director = new WaveDirector(_activeWave, ctx.Data.Night, _hpNight, _hpNight * 7919 + 17);
             _lastHordeWarned = -1;
             _resultDelay = 0f;
             _phase = Phase.Playing;
 
             ctx.Hud.HideOverlays();
             ctx.Hud.SetBattleVisible(true);
-            ctx.Hud.ShowBanner("NIGHT " + _night + "\n습격 시작!", 1.8f, new Color(1f, 0.55f, 0.15f));
+            ctx.Hud.ShowBanner(_practice ? "연습 습격\n워커만 1분 동안 몰려와요" : "NIGHT " + _night + "\n습격 시작!", 1.8f, new Color(1f, 0.55f, 0.15f));
             if (!string.IsNullOrEmpty(setup.LeaderName)) ctx.Hud.SetHint($"출전 영웅: {setup.LeaderName}  ·  땅을 탭해 이동");
             ctx.Feedback.Sfx.Play(SfxId.Siren, 0f);
             SkyLighting.Dawn(ctx.Sun, 0f);
@@ -159,6 +184,7 @@ namespace ZombieSLG.Battle
         public void OnSkillButton()
         {
             if (_phase != Phase.Playing) return;
+            if (!Allowed(TutorialAction.Skill)) return;
             _ctx.Skill.ToggleTargeting();
             _ctx.Feedback.Sfx.Play(SfxId.Click, 0f);
         }
@@ -166,7 +192,8 @@ namespace ZombieSLG.Battle
         public void OnStressTest()
         {
             if (_phase != Phase.Playing) return;
-            float hp = _ctx.Data.Night.HpMultiplier(_night);
+            if (!Allowed(TutorialAction.DebugKey)) return;
+            float hp = _ctx.Data.Night.HpMultiplier(_hpNight);
             for (int i = 0; i < _ctx.Config.StressTestCount; i++)
             {
                 var side = (SpawnSide)(i % 3);
@@ -203,7 +230,7 @@ namespace ZombieSLG.Battle
 
                 _spawns.Clear();
                 _director.Tick(dt, ctx.Zombies.AliveCount, _spawns);
-                float hp = _ctx.Data.Night.HpMultiplier(_night);
+                float hp = _ctx.Data.Night.HpMultiplier(_hpNight);
                 for (int i = 0; i < _spawns.Count; i++)
                 {
                     var s = _spawns[i];
@@ -229,7 +256,7 @@ namespace ZombieSLG.Battle
                 if (_resultDelay > 0f)
                 {
                     _resultDelay -= dt;
-                    if (_resultDelay <= 0f) ctx.Hud.ShowResult(_outcome.Victory, _pendingResultBody, "기지로 돌아가기");
+                    if (_resultDelay <= 0f) ctx.Hud.ShowResult(_outcome.Victory || _practice, _pendingResultBody, "기지로 돌아가기");
                 }
             }
 
@@ -255,15 +282,18 @@ namespace ZombieSLG.Battle
                 if (_input.ReleasedThisFrame && !_input.PressStartedOverUi && onGround)
                 {
                     skill.Cast(ground);
+                    SkillCast?.Invoke();
                     _ctx.Hud.SetHint("");
                 }
                 return;
             }
 
             // Tap or drag on the ground steers the hero.
+            if (!Allowed(TutorialAction.HeroMove)) return;
             if (onGround && _input.IsPressed && !_input.PressStartedOverUi && (_input.PressedThisFrame || !_input.OverUi))
             {
                 _ctx.Hero.CommandMove(ground);
+                if (_input.PressedThisFrame) HeroCommanded?.Invoke();
                 if (_input.PressedThisFrame) _ctx.Hud.SetHint("");
             }
         }
@@ -296,7 +326,7 @@ namespace ZombieSLG.Battle
                     dead[t] += sq.Dead((TroopType)t);
                     wounded[t] += sq.Wounded((TroopType)t);
                 }
-            _outcome = new NightOutcome(victory, reward, kills, hpRatio, dead, wounded);
+            _outcome = new NightOutcome(victory, reward, kills, hpRatio, dead, wounded, _practice);
 
             if (victory)
             {
@@ -308,6 +338,20 @@ namespace ZombieSLG.Battle
             else
             {
                 ctx.Feedback.Sfx.Play(SfxId.Defeat, 0f);
+            }
+
+            if (_practice)
+            {
+                // Practice: nothing is gained or lost; point at the real thing.
+                if (!victory) ctx.Zombies.KillAll(true);
+                SkyLighting.Dawn(ctx.Sun, 1f);
+                _pendingResultBody =
+                    $"처치  {kills}     생존 시간  {FormatTime(_director.Elapsed)}\n\n" +
+                    (victory ? "잘했어요! 이게 밤의 기본이에요.\n" : "연습이니 괜찮아요.\n") +
+                    "<color=#9aa4b0>연습 습격은 진행·보상·병력 피해에 포함되지 않아요.</color>\n\n" +
+                    "<color=#ffb060>진짜 밤은 '밤 맞이하기'로 시작돼요.\n밤마다 좀비가 늘고 보상도 커져요.</color>";
+                _resultDelay = 1.6f;
+                return;
             }
 
             string starText = victory ? new string('★', stars) + new string('☆', 3 - stars) + "\n\n" : "";

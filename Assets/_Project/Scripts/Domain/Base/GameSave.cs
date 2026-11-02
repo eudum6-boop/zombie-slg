@@ -10,7 +10,7 @@ namespace ZombieSLG.Domain
     [Serializable]
     public sealed class GameSave
     {
-        public const int CurrentVersion = 3;
+        public const int CurrentVersion = 4;
 
         public int Version;
         public double LastTick;
@@ -44,6 +44,10 @@ namespace ZombieSLG.Domain
         public string ResearchActive;
         public double ResearchEnd;
         public List<ResearchSave> Research = new List<ResearchSave>();
+
+        // v4: first-session tutorial
+        public int TutorialStep;
+        public bool TutorialDone;
     }
 
     [Serializable]
@@ -182,6 +186,12 @@ namespace ZombieSLG.Domain
                 // v2 → v3: troops arrive. Existing players get the same starting squad as a new game.
                 EnsureTroops(s);
                 Stock(s, TroopType.Infantry).Healthy += data.Troops.StartInfantry;
+            }
+
+            if (s.Version < 4)
+            {
+                // v3 → v4: the tutorial arrives. Players who already got past the first night skip it.
+                if (s.Night > 1 || s.BestNight > 0) s.TutorialDone = true;
             }
 
             EnsureBuildings(s);

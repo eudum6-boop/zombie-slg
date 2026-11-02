@@ -322,6 +322,26 @@ MonoBehaviour:
     - Key: wave.side_east
       Value: 0.2
       Note: "\uB3D9\uCABD \uB4F1\uC7A5 \uBE44\uC728 (\uC11C\uCABD = \uB098\uBA38\uC9C0)"
+    - Key: tutorial.night_seconds
+      Value: 60
+      Note: "\uC5F0\uC2B5 \uBC24 \uAE38\uC774(\uCD08)"
+    - Key: tutorial.spawn_rate
+      Value: 0.5
+      Note: "\uC5F0\uC2B5 \uBC24 \uCD08\uB2F9 \uB4F1\uC7A5 \uC218"
+    - Key: tutorial.max_alive
+      Value: 20
+      Note: "\uC5F0\uC2B5 \uBC24 \uB3D9\uC2DC\uC5D0 \uC0B4\uC544 \uC788\uB294 \uCD5C\uB300
+        \uC880\uBE44 \uC218"
+    - Key: tutorial.horde_time
+      Value: 25
+      Note: "\uC5F0\uC2B5 \uBC24 \uC791\uC740 \uBB34\uB9AC \uB4F1\uC7A5 \uC2DC\uAC01(\uCD08)
+        \u2014 \uD654\uC5FC \uD3ED\uACA9 \uC5F0\uC2B5\uC6A9"
+    - Key: tutorial.horde_count
+      Value: 12
+      Note: "\uC5F0\uC2B5 \uBC24 \uC791\uC740 \uBB34\uB9AC \uD06C\uAE30"
+    - Key: tutorial.hq_hp_multiplier
+      Value: 3
+      Note: "\uC5F0\uC2B5 \uBC24 \uBCF8\uBD80 \uCCB4\uB825 \uBC30\uC728"
     - Key: zombie.aggro_range
       Value: 2.8
       Note: "\uC880\uBE44\uAC00 \uC601\uC6C5\uC744 \uCAD3\uAE30 \uC2DC\uC791\uD558\uB294
@@ -861,4 +881,4 @@ MonoBehaviour:
       Effect: skill_damage
       PerLevel: 0.08
       Description: "\uD654\uC5FC \uD3ED\uACA9 \uD53C\uD574 \uC99D\uAC00"
-  ImportedAt: 2026-10-23 16:28:18
+  ImportedAt: 2026-11-02 16:26:35
