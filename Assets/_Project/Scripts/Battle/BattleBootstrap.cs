@@ -34,6 +34,7 @@ namespace ZombieSLG.Battle
         private CloudSyncService _sync;
         private SyncedClock _clock;
         private RankingService _ranking;
+        private ServerRewardService _rewards;
         private LocalSaveRepository _localRepo;
         private readonly UgsServerTime _serverTime = new UgsServerTime();
         private bool _started;
@@ -131,6 +132,8 @@ namespace ZombieSLG.Battle
             // Layers: infrastructure → application → presentation.
             _baseService = new BaseService(_clock, _localRepo, new EventBus(), data);
             _baseService.Saved += _sync.MarkDirty;
+            _rewards = new ServerRewardService(new UgsServerRewards(_cloud), _baseService,
+                msg => Debug.LogWarning("[ZombieSLG][서버 보상] " + msg));
             var baseView = new BaseView(ctx);
             _flow = new GameFlow(ctx, _baseService, baseView, battle, input);
             var baseHud = new BaseHud(ctx, baseView, transform,
@@ -150,6 +153,7 @@ namespace ZombieSLG.Battle
             _flow.AttachArmyUi(new ArmyUi(ctx, baseHud.Root, onTrain: _flow.OnTrain, onHeal: _flow.OnHeal));
             _flow.AttachResearchUi(new ResearchUi(ctx, baseHud.Root, onStart: _flow.OnResearch));
             _flow.AttachRanking(_ranking, new RankingUi(baseHud.Root));
+            _flow.AttachServerRewards(_rewards);
             _baseHud = baseHud;
             baseHud.SetVisible(false); // shown by GameFlow once the save is loaded
         }
@@ -220,6 +224,17 @@ namespace ZombieSLG.Battle
             else if (online && !serverTime) _flow.Notify("서버 시간을 받지 못해 기기 시간을 사용합니다", new Color(1f, 0.8f, 0.4f));
             if (online) _ = _sync.PushNowAsync(); // upload the freshly loaded/migrated save
             if (online) _ = _ranking.ReportAsync(_baseService.State.Data.BestNight); // scores earned offline
+
+            // Server-authoritative tickets/gacha (Cloud Code module "ZombieServer").
+            if (online)
+            {
+                var ledger = await _rewards.SyncAsync();
+                if (this == null) return;
+                if (ledger != null)
+                    Debug.Log($"[ZombieSLG] 서버 보상 모듈 연결 (모집권 {ledger.Tickets}, 서버 NIGHT {ledger.Night}{(ledger.Imported ? ", 첫 연결 — 기존 진행 가져옴" : "")})");
+                else
+                    _flow.Notify("서버 보상 모듈에 연결하지 못했습니다 — 모집을 할 수 없습니다", new Color(1f, 0.8f, 0.4f));
+            }
         }
 
         /// <summary>

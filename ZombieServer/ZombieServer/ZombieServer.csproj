@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+      Cloud Code C# module. It compiles the game's own rules (Assets/_Project/Scripts/Domain) and embeds
+      the CSV tables, so the server computes rewards and gacha with exactly the client's code and numbers.
+      Deploy from Unity: Services ▸ Deployment ▸ ZombieServer ▸ Deploy.
+    -->
+    <PropertyGroup>
+        <TargetFramework>net9.0</TargetFramework>
+        <Nullable>disable</Nullable>
+        <Configurations>Debug;Release</Configurations>
+        <RootNamespace>ZombieServer</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Com.Unity.Services.CloudCode.Apis" Version="0.0.21" />
+        <PackageReference Include="Com.Unity.Services.CloudCode.Core" Version="0.0.1" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="7.0.1" />
+    </ItemGroup>
+
+    <!-- Shared game rules (pure C#, no UnityEngine) and data tables. -->
+    <ItemGroup>
+        <Compile Include="../../Assets/_Project/Scripts/Domain/**/*.cs" Link="Domain/%(RecursiveDir)%(Filename)%(Extension)" />
+        <EmbeddedResource Include="../../Assets/_Project/Data/Tables/*.csv" LogicalName="Tables.%(Filename)%(Extension)" />
+    </ItemGroup>
+
+    <PropertyGroup>
+        <PublishReadyToRunComposite>true</PublishReadyToRunComposite>
+    </PropertyGroup>
+
+</Project>
