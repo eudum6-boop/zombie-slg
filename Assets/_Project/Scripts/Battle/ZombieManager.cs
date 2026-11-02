@@ -26,6 +26,11 @@ namespace ZombieSLG.Battle
         public float DeathTimer;
         public bool Dying;
 
+        // Used by ZombieSystemJobs (no Transform there).
+        public Quaternion Rot = Quaternion.identity;
+        public Vector3 VisualPos;
+        public Quaternion VisualRot = Quaternion.identity;
+
         public bool IsAlive => !Dying;
         public Vector3 AimPoint => Pos + new Vector3(0f, 0.8f * Stats.VisualScale, 0f);
     }
@@ -35,7 +40,7 @@ namespace ZombieSLG.Battle
     /// Neighbour queries use a uniform-grid spatial hash rebuilt every frame (O(n)).
     /// M4 replaces the agent loop with Jobs/Burst and rendering with GPU instancing; keep this as the "before" profile.
     /// </summary>
-    public sealed class ZombieManager
+    public sealed class ZombieManager : IZombieSystem
     {
         public const int HardCap = 800;
         private const float DeathDuration = 0.45f;
@@ -56,6 +61,11 @@ namespace ZombieSLG.Battle
         private readonly Material _armMat;
         private readonly Material _eyeMat;
 
+        private static readonly Unity.Profiling.ProfilerMarker SimMarker = new Unity.Profiling.ProfilerMarker("Zombies.GameObjects.Tick");
+        private readonly System.Diagnostics.Stopwatch _watch = new System.Diagnostics.Stopwatch();
+
+        public string Mode => "GameObject (기준선)";
+        public float LastTickMs { get; private set; }
         public int AliveCount { get; private set; }
         public int ActiveCount => _active.Count;
         public int Kills { get; set; }
@@ -163,6 +173,13 @@ namespace ZombieSLG.Battle
 
         /// <summary>Runs AI, steering, attacks and animation for every active zombie.</summary>
         public void Tick(float dt, bool simulate)
+        {
+            _watch.Restart();
+            using (SimMarker.Auto()) TickInternal(dt, simulate);
+            LastTickMs = (float)_watch.Elapsed.TotalMilliseconds;
+        }
+
+        private void TickInternal(float dt, bool simulate)
         {
             var map = _ctx.Map;
             var hq = _ctx.Hq;

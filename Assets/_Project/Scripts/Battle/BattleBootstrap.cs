@@ -18,6 +18,18 @@ namespace ZombieSLG.Battle
     [DefaultExecutionOrder(-100)]
     public sealed class BattleBootstrap : MonoBehaviour
     {
+        public enum ZombieMode
+        {
+            /// <summary>M4: Burst jobs + GPU instancing.</summary>
+            Jobs,
+            /// <summary>M0 baseline: GameObject per zombie (kept for before/after profiling).</summary>
+            GameObjects,
+        }
+
+        [Header("Performance")]
+        [Tooltip("Jobs = Burst 잡 + GPU 인스턴싱 (M4). GameObjects = 좀비마다 GameObject (M0 기준선, 비교용).")]
+        [SerializeField] private ZombieMode _zombieMode = ZombieMode.Jobs;
+
         [Header("Debug")]
         [SerializeField] private int _zombiePrewarm = 300;
         [SerializeField] private int _stressTestCount = 200;
@@ -91,7 +103,8 @@ namespace ZombieSLG.Battle
             ctx.Hq = hqGo.AddComponent<HeadquartersView>();
             ctx.Hq.Init(ctx);
 
-            ctx.Zombies = new ZombieManager(ctx);
+            ctx.Zombies = _zombieMode == ZombieMode.Jobs ? (IZombieSystem)new ZombieSystemJobs(ctx) : new ZombieManager(ctx);
+            Debug.Log("[ZombieSLG] 좀비 시스템: " + ctx.Zombies.Mode);
             int pre = Mathf.Max(0, config.ZombiePrewarm);
             ctx.Zombies.Prewarm(pre, pre / 3, pre / 10);
 
@@ -264,6 +277,13 @@ namespace ZombieSLG.Battle
         {
             // _flow is null after a script reload during Play (Unity keeps the bool, drops the objects).
             if (!_started || _flow == null) return;
+            // U: uncap the frame rate so the two zombie modes can be compared beyond the 60 FPS cap.
+            if (PointerInput.KeyDown(UnityEngine.InputSystem.Key.U))
+            {
+                bool uncapped = UnityEngine.Application.targetFrameRate != -1;
+                UnityEngine.Application.targetFrameRate = uncapped ? -1 : 60;
+                Debug.Log(uncapped ? "[ZombieSLG] 프레임 제한 해제 (측정용)" : "[ZombieSLG] 60 FPS 제한");
+            }
             _flow.Tick(Time.deltaTime);
             _sync.Tick();
         }
@@ -299,6 +319,11 @@ namespace ZombieSLG.Battle
             if (!_started) return;
             _baseService.Save();
             _ = _sync.PushNowAsync(); // best effort; the next launch uploads anyway
+        }
+
+        private void OnDestroy()
+        {
+            (_ctx?.Zombies as System.IDisposable)?.Dispose(); // native buffers of the Jobs horde
         }
 
         private void OnDisable()
