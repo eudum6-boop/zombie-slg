@@ -1,0 +1,27 @@
+<linker>
+  <assembly fullname="Unity.Addressables, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null" preserve="all">
+    <type fullname="UnityEngine.AddressableAssets.Addressables" preserve="all" />
+  </assembly>
+  <assembly fullname="Unity.ResourceManager, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null" preserve="all">
+    <type fullname="UnityEngine.ResourceManagement.ResourceProviders.AssetBundleProvider" preserve="all" />
+    <type fullname="UnityEngine.ResourceManagement.ResourceProviders.BundledAssetProvider" preserve="all" />
+    <type fullname="UnityEngine.ResourceManagement.ResourceProviders.InstanceProvider" preserve="all" />
+    <type fullname="UnityEngine.ResourceManagement.ResourceProviders.SceneProvider" preserve="all" />
+  </assembly>
+  <assembly fullname="UnityEngine.CoreModule, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
+    <type fullname="UnityEngine.Object" preserve="all" />
+  </assembly>
+  <assembly fullname="ZombieSLG.Infrastructure, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
+    <type fullname="ZombieSLG.Infrastructure.GameDataAsset" preserve="all" />
+  </assembly>
+  <assembly fullname="ZombieSLG.Domain">
+    <type fullname="ZombieSLG.Domain.BalanceRow" preserve="nothing" serialized="true" />
+    <type fullname="ZombieSLG.Domain.BuildingRow" preserve="nothing" serialized="true" />
+    <type fullname="ZombieSLG.Domain.GameTables" preserve="nothing" serialized="true" />
+    <type fullname="ZombieSLG.Domain.HeroRow" preserve="nothing" serialized="true" />
+    <type fullname="ZombieSLG.Domain.HordeRow" preserve="nothing" serialized="true" />
+    <type fullname="ZombieSLG.Domain.ResearchRow" preserve="nothing" serialized="true" />
+    <type fullname="ZombieSLG.Domain.TroopRow" preserve="nothing" serialized="true" />
+    <type fullname="ZombieSLG.Domain.ZombieRow" preserve="nothing" serialized="true" />
+  </assembly>
+</linker>

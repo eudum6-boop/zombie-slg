@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -178,17 +179,36 @@ namespace ZombieSLG.Battle
         /// </summary>
         private async void Start()
         {
+            _boot = new BootScreen(transform);
+            try
+            {
+                await StartAsync();
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+                if (this != null) _boot.ShowError("게임을 시작하지 못했습니다", e);
+            }
+        }
+
+        private BootScreen _boot;
+
+        private async System.Threading.Tasks.Task StartAsync()
+        {
+            _boot.SetStatus("게임 데이터 불러오는 중…");
             var asset = await GameDataAsset.LoadAsync();
             if (this == null) return;
             if (asset != null) Debug.Log($"[ZombieSLG] GameData 불러옴 ({GameDataAsset.LoadedFrom}, 가져온 시각 {asset.ImportedAt})");
             if (asset == null)
             {
                 Debug.LogError("[ZombieSLG] GameData가 없습니다. 메뉴 ZombieSLG ▸ 데이터 테이블 가져오기 를 실행하세요.");
+                _boot.ShowError("게임 데이터(GameData)를 찾지 못했습니다");
                 enabled = false;
                 return;
             }
             bool skipPull = PlayerPrefs.GetInt(SkipCloudPullKey, 0) == 1;
 
+            _boot.SetStatus("서버 연결 중…");
             bool online = await _cloud.ConnectAsync();
             bool serverTime = online && await _clock.TrySyncAsync(_serverTime, 8000);
             if (online && !serverTime) // first Cloud Code call can be slow right after sign-in; try once more
@@ -203,10 +223,12 @@ namespace ZombieSLG.Battle
             var data = LoadGameData(asset, overrides, out int applied);
             if (data == null)
             {
+                _boot.ShowError("밸런스 데이터 오류 — 로그를 확인하세요");
                 enabled = false;
                 return;
             }
             if (applied > 0) Debug.Log($"[ZombieSLG] 서버 밸런스 값 {applied}개 적용{(freshConfig ? "" : " (저장된 값)")}");
+            _boot.SetStatus("기지 준비 중…");
             BuildGame(data);
 
             if (online && !serverTime)
@@ -229,6 +251,7 @@ namespace ZombieSLG.Battle
 
             _flow.Start();
             _started = true;
+            _boot.Close();
 
             switch (source)
             {

@@ -26,13 +26,24 @@ namespace ZombieSLG.Battle
 
         public MaterialLibrary()
         {
-            _lit = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
-            _unlit = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Unlit/Color");
-            _particle = Shader.Find("Universal Render Pipeline/Particles/Unlit") ?? _unlit;
+            // Template materials under Resources/ShaderRefs keep these shaders (and their instancing/emission
+            // variants) in player builds; Shader.Find alone returns null for stripped shaders on device.
+            _lit = FromTemplate("Lit") ?? Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
+            _unlit = FromTemplate("Unlit") ?? Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Unlit/Color");
+            _particle = FromTemplate("ParticleUnlit") ?? Shader.Find("Universal Render Pipeline/Particles/Unlit") ?? _unlit;
+            if (_lit == null || _unlit == null)
+                throw new System.InvalidOperationException(
+                    "URP 셰이더가 빌드에 포함되지 않았습니다 (Resources/ShaderRefs 머티리얼 확인)");
 
             CubeMesh = GrabMesh(PrimitiveType.Cube);
             SphereMesh = GrabMesh(PrimitiveType.Sphere);
             CylinderMesh = GrabMesh(PrimitiveType.Cylinder);
+        }
+
+        private static Shader FromTemplate(string name)
+        {
+            var m = Resources.Load<Material>("ShaderRefs/" + name);
+            return m != null ? m.shader : null;
         }
 
         private static Mesh GrabMesh(PrimitiveType type)
