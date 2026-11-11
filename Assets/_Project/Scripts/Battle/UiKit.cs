@@ -18,11 +18,16 @@ namespace ZombieSLG.Battle
         public static readonly Color Bad = new Color(1f, 0.38f, 0.32f);
         public static readonly Color Muted = new Color(0.62f, 0.66f, 0.72f);
 
-        /// <summary>OS font with Hangul (Malgun Gothic on Windows), falling back to Unity's built-in.</summary>
+        /// <summary>
+        /// Bundled Noto Sans KR subset (same look on every platform; Android has no Malgun Gothic),
+        /// then an OS font with Hangul, then Unity's built-in.
+        /// </summary>
         public static Font Font
         {
             get
             {
+                if (_font != null) return _font;
+                _font = Resources.Load<Font>("Fonts/NotoSansKR");
                 if (_font != null) return _font;
                 try
                 {

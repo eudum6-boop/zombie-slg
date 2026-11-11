@@ -1,0 +1,8 @@
+C:/Users/USER/My project (1)/.utmp/RelWithDebInfo/404u6g2n/arm64-v8a/CMakeFiles/edit_cache.dir
+C:/Users/USER/My project (1)/.utmp/RelWithDebInfo/404u6g2n/arm64-v8a/CMakeFiles/rebuild_cache.dir
+C:/Users/USER/My project (1)/.utmp/RelWithDebInfo/404u6g2n/arm64-v8a/GameActivity/CMakeFiles/game.dir
+C:/Users/USER/My project (1)/.utmp/RelWithDebInfo/404u6g2n/arm64-v8a/GameActivity/CMakeFiles/edit_cache.dir
+C:/Users/USER/My project (1)/.utmp/RelWithDebInfo/404u6g2n/arm64-v8a/GameActivity/CMakeFiles/rebuild_cache.dir
+C:/Users/USER/My project (1)/.utmp/RelWithDebInfo/404u6g2n/arm64-v8a/FramePacing/CMakeFiles/swappywrapper.dir
+C:/Users/USER/My project (1)/.utmp/RelWithDebInfo/404u6g2n/arm64-v8a/FramePacing/CMakeFiles/edit_cache.dir
+C:/Users/USER/My project (1)/.utmp/RelWithDebInfo/404u6g2n/arm64-v8a/FramePacing/CMakeFiles/rebuild_cache.dir
